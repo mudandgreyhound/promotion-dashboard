@@ -969,7 +969,8 @@ if page not in ("⚙️ Admin", "📡 Sale Monitor", "🔁 ความถี่
                 latest_date = df_latest["d"].iloc[0]
                 if latest_date is not None:
                     latest_date = pd.to_datetime(latest_date).date()
-                    st.info(f"📅 ไม่มีข้อมูลในช่วง {d_from} – {d_to} → แสดงข้อมูลล่าสุด: {latest_date.strftime('%d/%m/%Y')}")
+                    # ไม่มีข้อมูลในช่วงที่เลือก (เช่น "วันนี้" — บิลเข้าทุกคืน) → ใช้วันล่าสุดที่มีข้อมูลแทนเงียบ ๆ
+                    # (เดิมขึ้นกล่องแจ้งเตือนทุกหน้า ผู้ใช้บอกว่าเกะกะ — หัวหน้าแต่ละหน้าแสดงวันที่จริงอยู่แล้ว)
                     d_from = latest_date
                     d_to   = latest_date
                     hdr, dtl, disc, pay, memtype, shop, itm, dep, cat, membertb = \
