@@ -1,0 +1,10 @@
+# cron ของ /opt/promotion_dashboard (อยู่ใน crontab ของ user ubuntu1 — ไฟล์นี้เป็นสำเนาไว้อ้างอิง แก้จริงด้วย crontab -e)
+# อัปเดต 2026-11-23
+0 2,3 * * * cd /opt/promotion_dashboard/etl && /opt/promotion_dashboard/venv/bin/python3 etl_sync.py --date_from $(date -d 'yesterday' +\%Y-\%m-\%d) --date_to $(date -d 'yesterday' +\%Y-\%m-\%d) >> /var/log/gh_etl.log 2>&1
+* 6-23 * * *            /usr/bin/flock -n /tmp/gh_sale_monitor.lock  bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py today'
+* 6-23 * * *  sleep 30; /usr/bin/flock -n /tmp/gh_sale_monitor.lock  bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py today'
+15 2 * * *              bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py yesterday'
+# Greyhound: ดึง 'เมื่อวาน' ซ้ำ — สาขา 0033 (MSMC-Mahanakhon CUBE) คีย์ยอดของวันก่อนตอน ~11:00 / ~20:30 วันถัดไป (เพิ่ม 2026-11-23)
+15 12 * * *  /usr/bin/flock -w 120 /tmp/gh_sale_monitor_yday.lock bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py yesterday'
+50 23 * * *  /usr/bin/flock -w 120 /tmp/gh_sale_monitor_yday.lock bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py yesterday'
+30 3 * * * /usr/bin/flock -n /tmp/etl_menu_eng.lock bash -c 'cd /opt/promotion_dashboard/etl && ../venv/bin/python3 etl_sync.py --menu-engineering --me-days 30 60 90' >> /opt/promotion_dashboard/etl/gh_etl_menu_eng.log 2>&1

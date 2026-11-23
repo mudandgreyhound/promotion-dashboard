@@ -298,9 +298,14 @@ SELECT CONVERT(varchar(10), bh.EntDate,120) AS biz_date, bh.ShopCode AS shop_cod
 FROM ONLBillHdrTB bh WITH (NOLOCK)
 INNER JOIN PosShopTB p WITH (NOLOCK) ON p.ShopCode=bh.ShopCode
 WHERE bh.EntDate=%(bizdate)s AND bh.BillTime LIKE '[0-2][0-9]:[0-5][0-9]%%'
+  AND CONVERT(date, bh.BillDate) <= CONVERT(date, bh.EntDate)
 GROUP BY CONVERT(varchar(10),bh.EntDate,120), bh.ShopCode,
   CAST(LEFT(bh.BillTime,2) AS INT)*100 + CAST(SUBSTRING(bh.BillTime,4,2) AS INT);
 """
+# ↑ ตัดบิลที่ "คีย์ย้อนหลังข้ามวัน" (BillDate > EntDate) — เจอ 2026-11-23: สาขา 0033 MSMC-Mahanakhon CUBE
+#   คีย์ยอดของวันธุรกิจ D ตอน ~11:00 (บางวัน ~20:30) ของวัน D+1 ทุกวัน → BillTime ไม่ใช่เวลาขายจริง
+#   ถ้านับ: เมื่อวาน ณ เวลาเดียวกันจะได้ยอดก้อนนี้ที่ 11:xx แต่วันนี้ไม่มีวันมี (มาพรุ่งนี้) → pace ติดลบเกินจริง
+#   ยอดทั้งวัน (sale_monitor_rt) ยังนับครบ — ตัดเฉพาะการเทียบรายนาที
 UPSERT_MIN = """
 INSERT INTO sale_monitor_minute (biz_date,shop_code,minute_slot,bill_count,net_sales,snapshot_at)
 VALUES (%s,%s,%s,%s,%s,%s)
@@ -392,6 +397,21 @@ def sale_monitor(brand: str | None = None, topn: int = Query(5, ge=1, le=50),
     }
 
 
+def resync_day(bizdate: str) -> str:
+    """ดึงวันย้อนหลังใหม่ทั้งวัน — กันพลาด: ถ้ายอดต้นทางตอนนี้ต่ำกว่าที่เก็บไว้ (เช่น ONL ของ CM POS
+    เริ่มลบวันเก่าทิ้งไปบางส่วน) จะไม่เขียนทับ"""
+    with pymssql.connect(**MSSQL) as src, src.cursor(as_dict=True) as c:
+        c.execute(SQL_SHOP, {"bizdate": bizdate}); shops = c.fetchall()
+    src_total = sum(float(r["net_sales"] or 0) for r in shops)
+    with pymysql.connect(**MYSQL) as dst, dst.cursor() as c:
+        c.execute("SELECT COALESCE(SUM(net_sales),0) FROM sale_monitor_rt WHERE biz_date=%s", (bizdate,))
+        cur_total = float(c.fetchone()[0] or 0)
+    if not shops or src_total < cur_total * 0.995:
+        return f"{bizdate}: SKIP ต้นทาง ฿{src_total:,.0f} < ที่เก็บไว้ ฿{cur_total:,.0f}"
+    sync(bizdate, force_extras=True)
+    return f"{bizdate}: ฿{cur_total:,.0f} → ฿{src_total:,.0f} ({src_total - cur_total:+,.0f})"
+
+
 if __name__ == "__main__":
     # today | yesterday (cron) | minute YYYY-MM-DD [YYYY-MM-DD ...] = เติมเฉพาะตารางรายนาทีย้อนหลัง
     # (ONLBillHdrTB ของ CM POS เก็บย้อนหลังแค่ ~2 สัปดาห์)
@@ -404,10 +424,14 @@ if __name__ == "__main__":
         for d in sys.argv[2:]:
             print(d, sync_extras(dt.date.fromisoformat(d).isoformat(), force=True))
         sys.exit(0)
+    if arg == "resync":                 # resync YYYY-MM-DD ... = ดึงใหม่ทั้งวัน (rt/interval/minute/extras) ย้อนหลัง
+        for d in sys.argv[2:]:
+            print(resync_day(dt.date.fromisoformat(d).isoformat()))
+        sys.exit(0)
     target = dt.date.today() if arg == "today" else dt.date.today() - dt.timedelta(days=1)
     try:
         sync(target.isoformat(), force_extras=(arg == "yesterday"))
     finally:
-        if arg == "yesterday":          # รอบ 02:15 วันละครั้ง
+        if arg == "yesterday":          # รอบ 02:15 / 12:15 / 23:50 (ดึงเมื่อวานซ้ำให้ได้บิลที่คีย์ย้อนหลัง)
             purge_minute()
             purge_extras()
