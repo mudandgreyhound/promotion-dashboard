@@ -607,6 +607,7 @@ def sm_totals(biz, shops):
                COALESCE(SUM(discount),0) disc, COALESCE(SUM(base_sales),0) base,
                COALESCE(SUM(bill_count),0) bills, COALESCE(SUM(cust_count),0) pax,
                COALESCE(SUM(member_bills),0) mem, COUNT(*) shops,
+               COALESCE(SUM(service_charge),0) svc, COALESCE(SUM(net_total),0) net_total,
                MAX(snapshot_at) snap, MAX(last_bill_time) last_bill
         FROM sale_monitor_rt WHERE biz_date=%s{cl}""", (biz, *p))
 
@@ -673,7 +674,7 @@ def _sm_ysame_by_shop(biz_y, cut_hhmm, cut_sec, shops):
 def sm_shop_rank(biz_t, biz_y, cut_hhmm, cut_sec, shops):
     """รายสาขา: วันนี้ + เมื่อวาน ณ เวลาเดียวกัน — รวมสาขาที่เมื่อวานขายแต่วันนี้ยังไม่มีบิล (ไว้เห็นว่าร้านไหนยังไม่เปิด/POS ไม่ส่ง)"""
     cl, p = _sm_shops_clause("shop_code", shops)
-    rt = _sm_q(f"""SELECT biz_date, shop_code, shop_name, brand, net_sales, base_sales, bill_count, member_bills,
+    rt = _sm_q(f"""SELECT biz_date, shop_code, shop_name, brand, net_sales, base_sales, bill_count, member_bills, service_charge,
                           last_bill_time FROM sale_monitor_rt WHERE biz_date IN (%s,%s){cl}""", (biz_t, biz_y, *p))
     if rt.empty:
         return rt
@@ -685,7 +686,8 @@ def sm_shop_rank(biz_t, biz_y, cut_hhmm, cut_sec, shops):
     out = pd.DataFrame(index=pd.Index(codes, name="shop_code"))
     out["shop_name"] = t["shop_name"].reindex(codes).fillna(y["shop_name"].reindex(codes)).fillna("")
     out["brand"]     = t["brand"].reindex(codes).fillna(y["brand"].reindex(codes)).fillna("")
-    for col, src in [("today", "net_sales"), ("base", "base_sales"), ("bills", "bill_count"), ("mem", "member_bills")]:
+    for col, src in [("today", "net_sales"), ("base", "base_sales"), ("bills", "bill_count"), ("mem", "member_bills"),
+                     ("svc", "service_charge")]:
         out[col] = pd.to_numeric(t[src].reindex(codes), errors="coerce").fillna(0)
     out["ysame"] = pd.to_numeric(ys.reindex(codes), errors="coerce").fillna(0)
     lb = t["last_bill_time"].reindex(codes)
@@ -1012,6 +1014,7 @@ if page == "📡 Sale Monitor":
             return float(v) if v is not None and pd.notna(v) else 0.0
 
         net, gross, disc, base = g(tot, "net"), g(tot, "gross"), g(tot, "disc"), g(tot, "base")
+        svc, net_total = g(tot, "svc"), g(tot, "net_total")      # service charge (รวม VAT ของ SC) / Net + SC
         bills, pax, mem, nshop = int(g(tot, "bills")), int(g(tot, "pax")), int(g(tot, "mem")), int(g(tot, "shops"))
         net_y_full = g(tot_y, "net")
         snap = tot["snap"].iloc[0] if not tot.empty else None
@@ -1039,6 +1042,7 @@ if page == "📡 Sale Monitor":
         disc_pct  = disc / gross * 100 if gross else 0
         disc_bill = disc / bills if bills else 0
         mem_pct   = mem / bills * 100 if bills else 0
+        svc_pct   = svc / base * 100 if base else 0
         pace_pct  = (net - net_y_same) / net_y_same * 100 if net_y_same else 0
         pace_diff = net - net_y_same
         up        = pace_pct >= 0
@@ -1079,6 +1083,17 @@ if page == "📡 Sale Monitor":
     <div style="{CARD}"><div style="{LB}">บิล Member</div><div style="{BIG}">{mem:,}
          <span style="font-size:16px;color:#6b7280;font-weight:700">({mem_pct:.0f}%)</span></div></div>
     <div style="{CARD}"><div style="{LB}">สาขาขายแล้ว</div><div style="{BIG}">{nshop:,}</div></div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+    <div style="{CARD}"><div style="{LB}">Net Sale · รวม VAT</div><div style="{BIG}">฿{net:,.0f}</div>
+         <div style="color:#6b7280;font-size:14px">ยอดขาย (ใช้เทียบเมื่อวาน/จัดอันดับ)</div></div>
+    <div style="font-size:28px;font-weight:800;color:#b8901f">+</div>
+    <div style="{CARD}"><div style="{LB}">Service Charge</div><div style="{BIG}">฿{svc:,.0f}</div>
+         <div style="color:#6b7280;font-size:14px">{svc_pct:.1f}% ของ Base Sale (delivery / Bean Hound ไม่มี)</div></div>
+    <div style="font-size:28px;font-weight:800;color:#b8901f">=</div>
+    <div style="{CARD};background:#fffaf0;border-color:#ead9a8"><div style="{LB}">ยอดเก็บเงินจริง · Net + Service</div>
+         <div style="{BIG};color:#8a6a00">฿{net_total:,.0f}</div>
+         <div style="color:#6b7280;font-size:14px">≈ ยอดรวมในกราฟช่องทางชำระเงิน</div></div>
   </div>
   <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap">
     <span style="font-size:21px;font-weight:800;color:#1f2328">📈 เทียบเมื่อวาน</span>
@@ -1246,6 +1261,7 @@ if page == "📡 Sale Monitor":
                 st.plotly_chart(_layout(fig, 300, legend=dict(orientation="v", x=1, y=0.5),
                                         uniformtext_minsize=11, uniformtext_mode="hide"),
                                 use_container_width=True, key="sm_pay")
+                st.caption("ยอดที่ลูกค้าจ่ายจริง (Net + Service Charge) · ไม่นับส่วนลด/คูปอง · อัปเดตทุก ~4 นาที")
                 pay["name"] = [("เงินสด" if g == "เงินสด" else str(n or c).strip())
                                for g, n, c in zip(pay["grp"], pay["card_name"], pay["tend_code"])]
                 det = pay.groupby(["name", "grp"])["amt"].sum().reset_index().sort_values("amt", ascending=False)
@@ -1370,13 +1386,15 @@ if page == "📡 Sale Monitor":
             "เทียบ %":             ["—" if v is None else f"{v:+.1f}%" for v in pct],
             "บิล":                tb["bills"].map(lambda v: f"{int(v):,}").values,
             "Avg/บิล (Base)":      [f"฿{b / n:,.0f}" if n else "—" for b, n in zip(tb["base"], tb["bills"])],
+            "Service (% Base)":   [f"฿{v:,.0f} ({v / b * 100:.1f}%)" if v and b else "—"
+                                   for v, b in zip(tb["svc"], tb["base"])],
             "Member":             tb["mem"].map(lambda v: f"{int(v):,}").values,
             "บิลล่าสุด":            tb["last_bill"].values,
         })
         st.dataframe(out, use_container_width=True, hide_index=True, height=38 + 35 * max(1, len(out)),
                      column_config={c: st.column_config.TextColumn(width="small") for c in
                                     ["อันดับ", "รหัส", "ยอดวันนี้", f"เมื่อวาน ณ {cut:%H:%M}", "เทียบ %", "บิล",
-                                     "Avg/บิล (Base)", "Member", "บิลล่าสุด"]}
+                                     "Avg/บิล (Base)", "Service (% Base)", "Member", "บิลล่าสุด"]}
                                    | {"อันดับ": st.column_config.NumberColumn(width="small")})
 
     render_sale_monitor()
