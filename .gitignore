@@ -1,0 +1,19 @@
+# ── ค่าลับ — ห้าม commit ──
+.env
+token_github.txt
+
+# ── environment / cache / log ──
+venv/
+__pycache__/
+*.pyc
+*.log
+
+# ── backup / ไฟล์เก่า (มีรหัส DB ฝังอยู่) ──
+*.bak
+*.bak_*
+backup.py
+_backup_*/
+
+# สำเนา ETL ของ Dunkin — ตัวที่ cron ใช้จริงอยู่ /opt/exception_report/etl/etl_sale_monitor.py
+# (ไม่ใช่ของโปรเจกต์นี้ และมีรหัส MSSQL ของ GD ฝังอยู่)
+etl/etl_sale_monitor.py
