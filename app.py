@@ -370,6 +370,13 @@ section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p { col
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
+# LOGIN — ต้องเข้าสู่ระบบก่อนเห็นข้อมูล (บัญชีใน promo_dash_users, จัดการด้วย manage_users.py)
+# ─────────────────────────────────────────────
+import dash_auth
+AUTH_USER, AUTH_NAME = dash_auth.require_login(st)
+
+
+# ─────────────────────────────────────────────
 # COLORS
 # ─────────────────────────────────────────────
 GOLD      = "#b8901f"     # ทองสำหรับกราฟ/เส้น (บนพื้นขาว)
@@ -929,6 +936,11 @@ with st.sidebar:
 
     st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
     st.markdown(f"<div style='font-size:11px;color:#6b7280;'>อัพเดท: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:13px;color:#374151;margin-top:10px'>👤 {AUTH_NAME}"
+                f"<span style='color:#9ca3af'> · {AUTH_USER}</span></div>", unsafe_allow_html=True)
+    if st.button("ออกจากระบบ", key="logout_btn", use_container_width=True):
+        dash_auth.logout(st)
+        st.rerun()
 
 
 # ─────────────────────────────────────────────
