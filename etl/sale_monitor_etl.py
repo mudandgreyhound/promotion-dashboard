@@ -53,12 +53,16 @@ WHERE bh.EntDate=%(bizdate)s
 GROUP BY CONVERT(varchar(10),bh.EntDate,120), bh.ShopCode, DATEPART(HOUR,bh.BillTime), p.VatType;
 """
 
+# นับเฉพาะบิลขายที่ไม่ถูก void (เหมือน bill_count) — เดิมนับบิลที่ถูกยกเลิกด้วย member เลยเกินจริงเล็กน้อย (2026-11-23)
 SQL_MEMBER = """
 SELECT biz_date, shop_code, COUNT(*) AS member_bills FROM (
-  SELECT DISTINCT CONVERT(varchar(10), EntDate,120) AS biz_date,
-         ShopCode AS shop_code, TerminalNo, BillNo
-  FROM ONLBillPayTB WITH (NOLOCK)
-  WHERE EntDate=%(bizdate)s AND tendtype='MEM' AND TendCode='Member'
+  SELECT DISTINCT CONVERT(varchar(10), p.EntDate,120) AS biz_date,
+         p.ShopCode AS shop_code, p.TerminalNo, p.BillNo
+  FROM ONLBillPayTB p WITH (NOLOCK)
+  INNER JOIN ONLBillHdrTB h WITH (NOLOCK)
+    ON h.ShopCode=p.ShopCode AND h.TerminalNo=p.TerminalNo AND h.BillNo=p.BillNo AND h.EntDate=p.EntDate
+  WHERE p.EntDate=%(bizdate)s AND p.tendtype='MEM' AND p.TendCode='Member'
+    AND h.BillType='INV' AND ISNULL(h.BillStatus,'')=''
 ) x
 GROUP BY biz_date, shop_code;
 """
@@ -85,7 +89,7 @@ ON DUPLICATE KEY UPDATE
   discount=VALUES(discount), snapshot_at=VALUES(snapshot_at);
 """
 
-def sync(bizdate: str):
+def sync(bizdate: str, force_extras: bool = False):
     """ดึง 1 วันธุรกิจจาก CM POS แล้ว upsert ลง MySQL"""
     now = dt.datetime.now()
     with pymssql.connect(**MSSQL) as src, src.cursor(as_dict=True) as c:
@@ -112,7 +116,163 @@ def sync(bizdate: str):
     except Exception as e:                 # ตารางรายนาทีเป็นส่วนเสริม — พังก็ไม่กระทบ rt/interval
         n_min = -1
         print(f"[{now:%H:%M:%S}] {bizdate}: minute sync failed: {e}")
-    print(f"[{now:%H:%M:%S}] {bizdate}: {len(rt)} shops, {len(iv)} hourly, {n_min} minute rows synced")
+    try:
+        ext = sync_extras(bizdate, force=force_extras)
+    except Exception as e:                 # ตารางรายละเอียดเป็นส่วนเสริม — พังก็ไม่กระทบ rt/interval
+        ext = f"extras failed: {e}"
+    print(f"[{now:%H:%M:%S}] {bizdate}: {len(rt)} shops, {len(iv)} hourly, {n_min} minute rows synced; {ext}")
+
+
+# ===================== รายละเอียดหน้า Sale Monitor: จ่ายเงิน / โปรโมชั่น / Member-Guest / สินค้า / ตะกร้า =====================
+# เก็บรายสาขา (หน้าเว็บกรองแบรนด์/สาขาได้) แบบแทนทั้งวัน (DELETE+INSERT ใน transaction เดียว)
+# รอบ today เติมทุก ~EXTRA_EVERY_SEC วิ (เช็คจาก snapshot ล่าสุด — ไม่ต้องแก้ crontab, cron ค้างรอบไหนก็ตามทันรอบถัดไป)
+# ไม่ทุก 30 วิเหมือน rt เพราะแถวเยอะกว่า (สินค้า ~4–6k แถว/วัน) และกราฟพวกนี้ไม่ต้องสดระดับวินาที
+EXTRA_EVERY_SEC   = 240
+EXTRA_KEEP_MONTHS = 2      # tender/promo/custtype/item
+BILL_ITEM_KEEP_DAYS = 14   # bill_item (ไว้คิดตะกร้า) โตเร็วกว่า เก็บสั้น
+
+DDL_EXTRA = {
+"sale_monitor_tender": """CREATE TABLE IF NOT EXISTS sale_monitor_tender (
+    biz_date DATE NOT NULL, shop_code VARCHAR(10) NOT NULL,
+    tendtype VARCHAR(10) NOT NULL, tend_code VARCHAR(20) NOT NULL, card_name VARCHAR(100) NULL,
+    amt DECIMAL(18,2) NOT NULL DEFAULT 0, bills INT NOT NULL DEFAULT 0, snapshot_at DATETIME NULL,
+    PRIMARY KEY (biz_date, shop_code, tendtype, tend_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+"sale_monitor_promo": """CREATE TABLE IF NOT EXISTS sale_monitor_promo (
+    biz_date DATE NOT NULL, shop_code VARCHAR(10) NOT NULL,
+    disc_code VARCHAR(20) NOT NULL, disc_name VARCHAR(150) NULL, disc_type VARCHAR(10) NULL,
+    disc_amt DECIMAL(18,2) NOT NULL DEFAULT 0, bills INT NOT NULL DEFAULT 0, snapshot_at DATETIME NULL,
+    PRIMARY KEY (biz_date, shop_code, disc_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+"sale_monitor_custtype": """CREATE TABLE IF NOT EXISTS sale_monitor_custtype (
+    biz_date DATE NOT NULL, shop_code VARCHAR(10) NOT NULL, cust_type VARCHAR(10) NOT NULL,
+    bills INT NOT NULL DEFAULT 0, net_sales DECIMAL(18,2) NOT NULL DEFAULT 0, pax INT NOT NULL DEFAULT 0,
+    snapshot_at DATETIME NULL,
+    PRIMARY KEY (biz_date, shop_code, cust_type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+"sale_monitor_item": """CREATE TABLE IF NOT EXISTS sale_monitor_item (
+    biz_date DATE NOT NULL, shop_code VARCHAR(10) NOT NULL, item_code VARCHAR(30) NOT NULL,
+    item_name VARCHAR(150) NULL, dept VARCHAR(50) NULL,
+    qty DECIMAL(18,2) NOT NULL DEFAULT 0, net_amt DECIMAL(18,2) NOT NULL DEFAULT 0, bills INT NOT NULL DEFAULT 0,
+    snapshot_at DATETIME NULL,
+    PRIMARY KEY (biz_date, shop_code, item_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+"sale_monitor_bill_item": """CREATE TABLE IF NOT EXISTS sale_monitor_bill_item (
+    biz_date DATE NOT NULL, shop_code VARCHAR(10) NOT NULL, bill_key VARCHAR(40) NOT NULL,
+    item_code VARCHAR(30) NOT NULL,
+    PRIMARY KEY (biz_date, shop_code, bill_key, item_code)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+}
+
+# จ่ายเงิน: เก็บดิบทุก tendtype/TendCode (หน้าเว็บจัดกลุ่ม เงินสด/บัตร/QR/delivery/voucher เอง)
+# ตัดแถวที่ไม่ใช่เงิน (OCR ปัดเศษ, CUS/REF/REP) และแถว MEM 'Member' (CardName = ชื่อลูกค้า — ไม่เก็บข้อมูลส่วนตัว)
+SQL_X_TENDER = """
+SELECT CONVERT(varchar(10), EntDate,120) AS biz_date, ShopCode AS shop_code, tendtype, TendCode AS tend_code,
+  MAX(CardName) AS card_name, SUM(TendAmt) AS amt, COUNT(DISTINCT TerminalNo+'|'+BillNo) AS bills
+FROM ONLBillPayTB WITH (NOLOCK)
+WHERE EntDate=%(bizdate)s AND tendtype NOT IN ('OCR','CUS','REF','REP')
+  AND NOT (tendtype='MEM' AND TendCode='Member')
+GROUP BY CONVERT(varchar(10), EntDate,120), ShopCode, tendtype, TendCode;
+"""
+SQL_X_PROMO = """
+SELECT CONVERT(varchar(10), EntDate,120) AS biz_date, ShopCode AS shop_code, DiscCode AS disc_code,
+  MAX(DiscName) AS disc_name, MAX(DiscType) AS disc_type, SUM(DiscAmt) AS disc_amt,
+  COUNT(DISTINCT TerminalNo+'|'+BillNo) AS bills
+FROM ONLBillMultiDiscTB WITH (NOLOCK)
+WHERE EntDate=%(bizdate)s
+GROUP BY CONVERT(varchar(10), EntDate,120), ShopCode, DiscCode;
+"""
+# member = บิลที่มีแถว MEM 'Member' (นิยามเดียวกับ sale_monitor_rt.member_bills) — net ใช้สูตรเดียวกับ SQL_SHOP
+SQL_X_CUST = """
+SELECT CONVERT(varchar(10), h.EntDate,120) AS biz_date, h.ShopCode AS shop_code,
+  CASE WHEN m.BillNo IS NULL THEN 'Guest' ELSE 'Member' END AS cust_type,
+  COUNT(CASE WHEN h.BillType='INV' AND ISNULL(h.BillStatus,'')='' THEN 1 END) AS bills,
+  SUM(CASE p.VatType WHEN '1' THEN h.NetBAmt+(h.VatAmt1-h.VatAmt2) ELSE h.NetBAmt END) AS net_sales,
+  SUM(CASE WHEN h.BillType='INV' AND ISNULL(h.BillStatus,'')='' THEN h.NoPerson ELSE 0 END) AS pax
+FROM ONLBillHdrTB h WITH (NOLOCK)
+INNER JOIN PosShopTB p WITH (NOLOCK) ON p.ShopCode=h.ShopCode
+LEFT JOIN (SELECT DISTINCT ShopCode, TerminalNo, BillNo FROM ONLBillPayTB WITH (NOLOCK)
+           WHERE EntDate=%(bizdate)s AND tendtype='MEM' AND TendCode='Member') m
+  ON m.ShopCode=h.ShopCode AND m.TerminalNo=h.TerminalNo AND m.BillNo=h.BillNo
+WHERE h.EntDate=%(bizdate)s
+GROUP BY CONVERT(varchar(10), h.EntDate,120), h.ShopCode, CASE WHEN m.BillNo IS NULL THEN 'Guest' ELSE 'Member' END;
+"""
+# สินค้า: เฉพาะบรรทัดที่มีราคา (NetAmt>0) ของบิลขายที่ไม่ถูก void — NetAmt รวมทั้งวัน ≈ Base Sale (ก่อน VAT)
+_X_DTL_FROM = """
+FROM ONLBillDtlTB d WITH (NOLOCK)
+INNER JOIN ONLBillHdrTB h WITH (NOLOCK)
+  ON h.ShopCode=d.ShopCode AND h.TerminalNo=d.TerminalNo AND h.BillType=d.BillType
+ AND h.BillNo=d.BillNo AND h.EntDate=d.EntDate
+WHERE d.EntDate=%(bizdate)s AND h.BillType='INV' AND ISNULL(h.BillStatus,'')='' AND d.NetAmt>0
+"""
+SQL_X_ITEM = """
+SELECT CONVERT(varchar(10), d.EntDate,120) AS biz_date, d.ShopCode AS shop_code, d.ItemCode AS item_code,
+  MAX(COALESCE(i.ItemDes1, d.ItemCode)) AS item_name, MAX(RTRIM(COALESCE(dep.DepDes1,''))) AS dept,
+  SUM(d.ActQTY) AS qty, SUM(d.NetAmt) AS net_amt, COUNT(DISTINCT d.TerminalNo+'|'+d.BillNo) AS bills
+""" + _X_DTL_FROM.replace("WHERE", """LEFT JOIN ItmMasTB i WITH (NOLOCK) ON i.ItemCode=d.ItemCode
+LEFT JOIN ItmDepTB dep WITH (NOLOCK) ON dep.DepCode=i.DepCode0
+WHERE""") + """
+GROUP BY CONVERT(varchar(10), d.EntDate,120), d.ShopCode, d.ItemCode;
+"""
+SQL_X_BILL_ITEM = """
+SELECT DISTINCT CONVERT(varchar(10), d.EntDate,120) AS biz_date, d.ShopCode AS shop_code,
+  d.TerminalNo+'|'+d.BillNo AS bill_key, d.ItemCode AS item_code
+""" + _X_DTL_FROM + ";"
+
+X_COLS = {
+    "sale_monitor_tender":    ["biz_date", "shop_code", "tendtype", "tend_code", "card_name", "amt", "bills", "snapshot_at"],
+    "sale_monitor_promo":     ["biz_date", "shop_code", "disc_code", "disc_name", "disc_type", "disc_amt", "bills", "snapshot_at"],
+    "sale_monitor_custtype":  ["biz_date", "shop_code", "cust_type", "bills", "net_sales", "pax", "snapshot_at"],
+    "sale_monitor_item":      ["biz_date", "shop_code", "item_code", "item_name", "dept", "qty", "net_amt", "bills", "snapshot_at"],
+    "sale_monitor_bill_item": ["biz_date", "shop_code", "bill_key", "item_code"],
+}
+X_SQL = {"sale_monitor_tender": SQL_X_TENDER, "sale_monitor_promo": SQL_X_PROMO,
+         "sale_monitor_custtype": SQL_X_CUST, "sale_monitor_item": SQL_X_ITEM,
+         "sale_monitor_bill_item": SQL_X_BILL_ITEM}
+
+
+def sync_extras(bizdate: str, force: bool = False) -> str:
+    now = dt.datetime.now().replace(microsecond=0)
+    with pymysql.connect(**MYSQL) as dst, dst.cursor() as c:
+        last = None
+        try:
+            c.execute("SELECT MAX(snapshot_at) FROM sale_monitor_custtype WHERE biz_date=%s", (bizdate,))
+            last = c.fetchone()[0]
+        except pymysql.err.ProgrammingError:          # ยังไม่มีตาราง → สร้างครั้งแรก
+            for ddl in DDL_EXTRA.values():
+                c.execute(ddl)
+            dst.commit()
+        if not force and last and (now - last).total_seconds() < EXTRA_EVERY_SEC:
+            return "extras skip"
+    data = {}
+    with pymssql.connect(**MSSQL, charset="CP874") as src, src.cursor(as_dict=True) as c:   # ชื่อไทย (เมนู/โปร) ใน CM POS เป็น CP874
+        for tbl, sql in X_SQL.items():
+            c.execute(sql, {"bizdate": bizdate}); data[tbl] = c.fetchall()
+    if not data["sale_monitor_custtype"]:
+        return "extras: no bills"                     # source ว่างชั่วคราว — ไม่แตะข้อมูลเดิม
+    with pymysql.connect(**MYSQL) as dst, dst.cursor() as c:
+        for tbl, cols in X_COLS.items():
+            rows = []
+            for r in data[tbl]:
+                row = []
+                for col in cols:
+                    v = now if col == "snapshot_at" else r.get(col)
+                    if isinstance(v, str):
+                        v = v.strip()[:150]
+                    row.append(v)
+                rows.append(tuple(row))
+            c.execute(f"DELETE FROM {tbl} WHERE biz_date=%s", (bizdate,))
+            if rows:
+                c.executemany(f"INSERT INTO {tbl} ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})", rows)
+        dst.commit()
+    return "extras " + ", ".join(f"{t.replace('sale_monitor_', '')}={len(data[t])}" for t in X_COLS)
+
+
+def purge_extras():
+    try:
+        with pymysql.connect(**MYSQL) as dst, dst.cursor() as c:
+            for tbl in ("sale_monitor_tender", "sale_monitor_promo", "sale_monitor_custtype", "sale_monitor_item"):
+                c.execute(f"DELETE FROM {tbl} WHERE biz_date < DATE_SUB(CURDATE(), INTERVAL %s MONTH)", (EXTRA_KEEP_MONTHS,))
+            c.execute("DELETE FROM sale_monitor_bill_item WHERE biz_date < DATE_SUB(CURDATE(), INTERVAL %s DAY)",
+                      (BILL_ITEM_KEEP_DAYS,))
+            dst.commit()
+    except Exception as e:
+        print(f"purge extras failed: {e}")
 
 
 # ===================== ยอดรายนาที (เทียบ "เมื่อวาน ณ เวลาเดียวกัน" ตรงนาที) =====================
@@ -240,9 +400,14 @@ if __name__ == "__main__":
         for d in sys.argv[2:]:
             print(d, sync_minute(dt.date.fromisoformat(d).isoformat()), "minute rows")
         sys.exit(0)
+    if arg == "extras":                 # extras YYYY-MM-DD ... = เติมตารางรายละเอียดย้อนหลัง/บังคับรอบนี้
+        for d in sys.argv[2:]:
+            print(d, sync_extras(dt.date.fromisoformat(d).isoformat(), force=True))
+        sys.exit(0)
     target = dt.date.today() if arg == "today" else dt.date.today() - dt.timedelta(days=1)
     try:
-        sync(target.isoformat())
+        sync(target.isoformat(), force_extras=(arg == "yesterday"))
     finally:
         if arg == "yesterday":          # รอบ 02:15 วันละครั้ง
             purge_minute()
+            purge_extras()

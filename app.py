@@ -646,6 +646,187 @@ def sm_short_name(name, maxlen=22):
     return s
 
 
+def _sm_ysame_by_shop(biz_y, cut_hhmm, cut_sec, shops):
+    """ยอดเมื่อวาน ณ เวลาเดียวกัน รายสาขา (ตรงนาที → fallback รายชั่วโมง)"""
+    cl, p = _sm_shops_clause("shop_code", shops)
+    df = _sm_q(f"""SELECT shop_code, SUM(CASE WHEN minute_slot < %s THEN net_sales
+                                         WHEN minute_slot = %s THEN net_sales * %s / 60 ELSE 0 END) ysame
+                   FROM sale_monitor_minute WHERE biz_date=%s{cl} GROUP BY shop_code""",
+               (cut_hhmm, cut_hhmm, cut_sec, biz_y, *p))
+    if not df.empty:
+        return df
+    h, mi = divmod(int(cut_hhmm), 100)
+    return _sm_q(f"""SELECT shop_code, SUM(CASE WHEN hour_slot < %s THEN net_sales
+                                          WHEN hour_slot = %s THEN net_sales * %s / 60 ELSE 0 END) ysame
+                     FROM sale_monitor_interval WHERE biz_date=%s{cl} GROUP BY shop_code""",
+                 (h, h, mi + cut_sec / 60, biz_y, *p))
+
+
+@st.cache_data(ttl=SM_REFRESH_SEC, show_spinner=False)
+def sm_shop_rank(biz_t, biz_y, cut_hhmm, cut_sec, shops):
+    """รายสาขา: วันนี้ + เมื่อวาน ณ เวลาเดียวกัน — รวมสาขาที่เมื่อวานขายแต่วันนี้ยังไม่มีบิล (ไว้เห็นว่าร้านไหนยังไม่เปิด/POS ไม่ส่ง)"""
+    cl, p = _sm_shops_clause("shop_code", shops)
+    rt = _sm_q(f"""SELECT biz_date, shop_code, shop_name, brand, net_sales, base_sales, bill_count, member_bills,
+                          last_bill_time FROM sale_monitor_rt WHERE biz_date IN (%s,%s){cl}""", (biz_t, biz_y, *p))
+    if rt.empty:
+        return rt
+    rt["biz_date"] = rt["biz_date"].astype(str)
+    t = rt[rt["biz_date"] == biz_t].set_index("shop_code")
+    y = rt[rt["biz_date"] == biz_y].set_index("shop_code")
+    ys = _sm_ysame_by_shop(biz_y, cut_hhmm, cut_sec, shops).set_index("shop_code")["ysame"]
+    codes = sorted(set(t.index) | set(ys[ys.astype(float) > 0].index))
+    out = pd.DataFrame(index=pd.Index(codes, name="shop_code"))
+    out["shop_name"] = t["shop_name"].reindex(codes).fillna(y["shop_name"].reindex(codes)).fillna("")
+    out["brand"]     = t["brand"].reindex(codes).fillna(y["brand"].reindex(codes)).fillna("")
+    for col, src in [("today", "net_sales"), ("base", "base_sales"), ("bills", "bill_count"), ("mem", "member_bills")]:
+        out[col] = pd.to_numeric(t[src].reindex(codes), errors="coerce").fillna(0)
+    out["ysame"] = pd.to_numeric(ys.reindex(codes), errors="coerce").fillna(0)
+    lb = t["last_bill_time"].reindex(codes)
+    out["last_bill"] = lb.map(lambda v: (lambda s: f"{s // 3600:02d}:{s % 3600 // 60:02d}")(int(pd.Timedelta(v).total_seconds()))
+                              if pd.notna(v) else "—")
+    return out.reset_index().sort_values("today", ascending=False)
+
+
+@st.cache_data(ttl=SM_REFRESH_SEC, show_spinner=False)
+def sm_hourly(biz_t, biz_y, shops):
+    cl, p = _sm_shops_clause("shop_code", shops)
+    df = _sm_q(f"""SELECT biz_date, hour_slot, SUM(net_sales) net, SUM(discount) disc, SUM(bill_count) bills
+                   FROM sale_monitor_interval WHERE biz_date IN (%s,%s){cl}
+                   GROUP BY biz_date, hour_slot ORDER BY hour_slot""", (biz_t, biz_y, *p))
+    df["biz_date"] = df["biz_date"].astype(str)
+    return df
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def sm_extra(kind, biz, shops):
+    """ตารางรายละเอียด (ETL เติมทุก ~4 นาที) รวมทุกสาขาที่เลือก"""
+    cl, p = _sm_shops_clause("shop_code", shops)
+    sql = {
+        "tender": f"""SELECT tendtype, tend_code, MAX(card_name) card_name, SUM(amt) amt, SUM(bills) bills
+                      FROM sale_monitor_tender WHERE biz_date=%s{cl} GROUP BY tendtype, tend_code""",
+        "promo":  f"""SELECT disc_code, MAX(disc_name) disc_name, MAX(disc_type) disc_type,
+                             SUM(disc_amt) amt, SUM(bills) bills
+                      FROM sale_monitor_promo WHERE biz_date=%s{cl} GROUP BY disc_code ORDER BY amt DESC""",
+        "cust":   f"""SELECT cust_type, SUM(bills) bills, SUM(net_sales) net, SUM(pax) pax, MAX(snapshot_at) snap
+                      FROM sale_monitor_custtype WHERE biz_date=%s{cl} GROUP BY cust_type""",
+        "item":   f"""SELECT item_code, MAX(item_name) item_name, MAX(dept) dept, SUM(qty) qty,
+                             SUM(net_amt) net, SUM(bills) bills
+                      FROM sale_monitor_item WHERE biz_date=%s{cl} GROUP BY item_code""",
+    }[kind]
+    try:
+        return _sm_q(sql, (biz, *p))
+    except Exception:
+        return pd.DataFrame()      # ยังไม่มีตาราง (ETL ยังไม่เคยรันส่วนนี้)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def sm_basket(biz, shops):
+    """คู่สินค้าในบิลเดียวกัน (วันนี้) + จำนวนบิลทั้งหมด — คิดจาก sale_monitor_bill_item"""
+    cl, p = _sm_shops_clause("a.shop_code", shops)
+    try:
+        pairs = _sm_q(f"""SELECT a.item_code ia, b.item_code ib, COUNT(*) bills
+                          FROM sale_monitor_bill_item a
+                          JOIN sale_monitor_bill_item b ON b.biz_date=a.biz_date AND b.shop_code=a.shop_code
+                                AND b.bill_key=a.bill_key AND b.item_code > a.item_code
+                          WHERE a.biz_date=%s{cl} GROUP BY a.item_code, b.item_code HAVING COUNT(*) >= 2""",
+                      (biz, *p))
+        cl2, p2 = _sm_shops_clause("shop_code", shops)
+        per_item = _sm_q(f"""SELECT item_code, COUNT(*) bills FROM sale_monitor_bill_item
+                             WHERE biz_date=%s{cl2} GROUP BY item_code""", (biz, *p2))
+        n = _sm_q(f"""SELECT COUNT(DISTINCT shop_code, bill_key) n FROM sale_monitor_bill_item
+                      WHERE biz_date=%s{cl2}""", (biz, *p2))
+        return pairs, per_item, int(n["n"].iloc[0] or 0)
+    except Exception:
+        return pd.DataFrame(), pd.DataFrame(), 0
+
+
+# จัดกลุ่มช่องทางจ่ายเงินจาก tendtype + ชื่อ (CardName) — ไม่ใช่เงิน (ส่วนลด/ค่าบริการ) คืน None
+_DELIVERY_KW = ("GRAB", "LINEMAN", "LINE MAN", "SHOPEE", "ROBINHOOD", "FOODPANDA")
+_QR_KW = ("QR", "PROMPT", "TRUEMONEY", "ALIPAY", "WECHAT", "COIN", "RABBIT", "LINE PAY")
+
+
+def sm_pay_group(tendtype, name):
+    t, n = str(tendtype or "").upper(), str(name or "").upper()
+    if t in ("CSH", "CHG"):
+        return "เงินสด"
+    if t == "CRD":
+        if any(k in n for k in _DELIVERY_KW):
+            return "Delivery"
+        if any(k in n for k in _QR_KW):
+            return "QR / e-Wallet"
+        return "บัตรเครดิต/เดบิต"
+    if t.startswith("VC"):
+        return "Voucher"
+    return None          # CHR ค่าบริการ, MEM/FRE/CPN/BDP/ITD = ส่วนลด (ไปอยู่ในโปรโมชั่น)
+
+
+SM_DISC_TYPE = {"FRE": "ของฟรี/1แถม1", "MEM": "ส่วนลดสมาชิก", "CPN": "คูปอง", "VCD": "Voucher",
+                "BDP": "ลดท้ายบิล", "ITD": "ส่วนลดเซ็ต/สินค้า"}
+SM_NON_MENU_DEPTS = {"Other", "EXTRA", "COMMENT", ""}     # ไม่นับเป็น "เมนูขายดี" (Gift Voucher / ท็อปปิ้ง / คอมเมนต์)
+SM_BASKET_COMMON = 0.12     # เมนูที่อยู่ในบิล ≥12% (เช่น น้ำเปล่า) ไม่นับใน "คู่บ่อยสุด" เพราะติดทุกคู่
+
+
+# ── ช่องค้นหาแบบพิมพ์แล้วกรองทันที (st.text_input ต้องกด Enter) — st.components.v2 มากับ Streamlit อยู่แล้ว ──
+_SEARCH_HTML = """
+<div class="sbox"><span class="ic">🔍</span>
+<input id="q" type="text" autocomplete="off" spellcheck="false" />
+<button id="clr" type="button" title="ล้าง">✕</button></div>
+"""
+_SEARCH_CSS = """
+*{box-sizing:border-box;margin:0;padding:0}
+.sbox{display:flex;align-items:center;gap:6px;height:42px;padding:0 10px 0 12px;background:#ffffff;
+  border:1.5px solid #e6dfd1;border-radius:12px;font-family:'Inter','Noto Sans Thai',sans-serif;transition:border-color .15s}
+.sbox:focus-within{border-color:#b8901f}
+.ic{font-size:14px;opacity:.6}
+#q{flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:inherit;font-size:15px;color:#1f2328}
+#q::placeholder{color:#9ca3af}
+#clr{border:none;background:transparent;cursor:pointer;color:#9ca3af;font-size:14px;padding:2px 4px;visibility:hidden}
+#clr:hover{color:#8a6a00}
+"""
+_SEARCH_JS = r"""
+export default function({ parentElement, data, setStateValue }) {
+  const input = parentElement.querySelector("#q");
+  const clr   = parentElement.querySelector("#clr");
+  input.placeholder = data.placeholder || "";
+  if (parentElement._attached) return;      // ผูก event ครั้งเดียว — rerun ไม่ทับค่าที่กำลังพิมพ์
+  input.value = data.value || "";
+  let t = null;
+  const sync = () => { clr.style.visibility = input.value ? "visible" : "hidden"; };
+  const send = () => { clearTimeout(t); setStateValue("value", input.value); };
+  input.addEventListener("input", () => { sync(); clearTimeout(t); t = setTimeout(send, data.debounce || 250); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") send();
+    if (e.key === "Escape") { input.value = ""; sync(); send(); }
+  });
+  clr.addEventListener("click", () => { input.value = ""; sync(); send(); input.focus(); });
+  sync();
+  parentElement._attached = true;
+}
+"""
+try:
+    _search_comp = st.components.v2.component(
+        "gh_search_box", html=_SEARCH_HTML, css=_SEARCH_CSS, js=_SEARCH_JS, isolate_styles=True)
+except Exception:
+    _search_comp = None
+
+
+def live_search(key, placeholder="", debounce=250):
+    """ช่องค้นหาที่คืนค่าทุกครั้งที่พิมพ์ (หลัง debounce) — fallback เป็น st.text_input"""
+    if _search_comp is None:
+        return st.text_input("ค้นหา", key=key, placeholder=placeholder, label_visibility="collapsed") or ""
+    ck = f"_ls_{key}"
+    prev = st.session_state.get(ck)
+    cur = prev.get("value", "") if isinstance(prev, dict) else ""
+    try:
+        res = _search_comp(data={"value": cur, "placeholder": placeholder, "debounce": debounce},
+                           default={"value": cur}, key=ck, on_value_change=lambda: None)
+    except Exception:          # component ใช้ไม่ได้ (เช่นใน AppTest ที่ mock registry) → ช่องค้นหาธรรมดา (กด Enter)
+        return st.text_input("ค้นหา", key=f"{key}_fallback", placeholder=placeholder,
+                             label_visibility="collapsed") or ""
+    v = getattr(res, "value", None)
+    return (cur if v is None else v) or ""
+
+
 @st.cache_data(ttl=300, show_spinner=False, max_entries=8)
 def load_clean(date_from: str, date_to: str, shop_codes: tuple):
     """โหลด + clean แล้ว cache ผลลัพธ์ — เดิม clean_data (merge หลายรอบ) รันใหม่ทุกครั้งที่กด widget"""
@@ -938,6 +1119,253 @@ if page == "📡 Sale Monitor":
         st.caption(f"เมื่อวาน ณ เวลาเดียวกัน = ยอดรายนาทีของเมื่อวานตัดที่เวลา snapshot วันนี้"
                    f"{'' if exact else ' (ไม่มีข้อมูลรายนาที → ประมาณจากรายชั่วโมง ≈)'} · "
                    f"หน้านี้ดูวันนี้เสมอ (ไม่ใช้ช่วงวันที่ด้านซ้าย) แต่ใช้ตัวกรองแบรนด์/สาขา")
+
+        _sm_details(today_s, yday_s, cut, cut_hhmm, cut_sec)
+
+    def _title(txt, sub=""):
+        st.markdown(f'<div class="section-title">{txt}'
+                    + (f' <span style="font-size:14px;font-weight:500;color:#6b7280">{sub}</span>' if sub else "")
+                    + '</div>', unsafe_allow_html=True)
+
+    def _plain(name, n=26):
+        return sm_short_name(name, n).replace("\\", "")
+
+    def _layout(fig, height, **kw):
+        fig.update_layout(**LAYOUT_BASE)
+        lg = kw.pop("legend", dict(orientation="h", y=1.1, x=0))
+        fig.update_layout(height=height, legend={**lg, "bgcolor": "rgba(0,0,0,0)"}, **kw)
+        return fig
+
+    def _rank_rows(rows):
+        """rows: [(ชื่อ, บรรทัดรอง, ยอด)] → HTML rank-row (CSS อยู่ในธีม)"""
+        import html as _html
+        out = ""
+        for i, (name, sub, amt) in enumerate(rows):
+            cls = ["top1", "top2", "top3"][i] if i < 3 else ""
+            out += (f'<div class="rank-row"><div class="rank-num {cls}">#{i + 1}</div>'
+                    f'<div class="rank-name">{_html.escape(str(name))}<br>'
+                    f'<span class="rank-sub">{_html.escape(str(sub))}</span></div>'
+                    f'<div class="rank-amt">{_html.escape(str(amt))}</div></div>')
+        st.markdown(out or "<div style='color:#6b7280'>ยังไม่มีข้อมูล</div>", unsafe_allow_html=True)
+
+    def _sm_details(today_s, yday_s, cut, cut_hhmm, cut_sec):
+        shops_df = sm_shop_rank(today_s, yday_s, cut_hhmm, cut_sec, sm_shops_sel)
+
+        # ── 🏆 Top สาขา ──
+        _title("🏆 Top สาขา", f"วันนี้ vs เมื่อวาน ณ {cut:%H:%M} (ยอดรวม VAT)")
+        if shops_df.empty:
+            st.info("ยังไม่มีข้อมูลรายสาขา")
+        else:
+            top = shops_df.head(15).iloc[::-1]
+            labels = [f"{c} · {_plain(n)}" for c, n in zip(top["shop_code"], top["shop_name"])]
+            fig = go.Figure()
+            fig.add_trace(go.Bar(y=labels, x=top["today"], orientation="h", name="วันนี้", marker_color=GOLD,
+                                 text=top["today"].map(lambda v: f"฿{v:,.0f}"), textposition="outside",
+                                 cliponaxis=False, hovertemplate="%{y}<br>วันนี้ ฿%{x:,.0f}<extra></extra>"))
+            fig.add_trace(go.Scatter(y=labels, x=top["ysame"], mode="markers", name=f"เมื่อวาน ณ {cut:%H:%M}",
+                                     marker=dict(symbol="line-ns", size=20, line=dict(width=3, color="#1f2328")),
+                                     hovertemplate="%{y}<br>เมื่อวาน ฿%{x:,.0f}<extra></extra>"))
+            st.plotly_chart(_layout(fig, max(320, 30 * len(top) + 70)), use_container_width=True, key="sm_top_shops")
+
+        # ── ⏱️ รายชั่วโมง | 👥 Member vs Guest ──
+        c1, c2 = st.columns([3, 2])
+        with c1:
+            _title("⏱️ ยอดขายรายชั่วโมง", "วันนี้ vs เมื่อวาน")
+            hr = sm_hourly(today_s, yday_s, sm_shops_sel)
+            ht, hy = hr[hr["biz_date"] == today_s], hr[hr["biz_date"] == yday_s]
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=ht["hour_slot"], y=ht["net"], name="ยอดวันนี้", marker_color=GOLD,
+                                 hovertemplate="%{x}:00 ฿%{y:,.0f}<extra>วันนี้</extra>"))
+            fig.add_trace(go.Bar(x=ht["hour_slot"], y=ht["disc"], name="ส่วนลดวันนี้", marker_color="#db2777",
+                                 hovertemplate="%{x}:00 ฿%{y:,.0f}<extra>ส่วนลด</extra>"))
+            fig.add_trace(go.Scatter(x=hy["hour_slot"], y=hy["net"], name="ยอดเมื่อวาน", mode="lines+markers",
+                                     line=dict(color="#6b7280", dash="dot", width=2),
+                                     hovertemplate="%{x}:00 ฿%{y:,.0f}<extra>เมื่อวาน</extra>"))
+            _layout(fig, 340, barmode="group")
+            fig.update_xaxes(dtick=1, title_text="ชั่วโมง")
+            st.plotly_chart(fig, use_container_width=True, key="sm_hourly")
+        with c2:
+            _title("👥 Member vs Guest")
+            cu = sm_extra("cust", today_s, sm_shops_sel)
+            if cu.empty:
+                st.info("รอ ETL รอบถัดไป (อัปเดตทุก ~4 นาที)")
+            else:
+                cu = cu.set_index("cust_type")
+                def gv(t, col):
+                    return float(cu.at[t, col] or 0) if t in cu.index else 0.0
+                tot_b = gv("Member", "bills") + gv("Guest", "bills")
+                tot_n = gv("Member", "net") + gv("Guest", "net")
+                cards = ""
+                for t, col, ico in [("Member", "#8a6a00", "🐾"), ("Guest", "#4b5563", "👤")]:
+                    b, n = gv(t, "bills"), gv(t, "net")
+                    cards += (f"<div style='flex:1;background:#fff;border:1px solid #ebe5d9;border-radius:14px;padding:14px 16px'>"
+                              f"<div style='color:#6b5e48;font-size:15px;font-weight:700'>{ico} {t}</div>"
+                              f"<div style='font-size:26px;font-weight:800;color:{col}'>฿{n:,.0f}</div>"
+                              f"<div style='color:#6b7280;font-size:14px'>{b:,.0f} บิล · {b / tot_b * 100 if tot_b else 0:.0f}% ของบิล"
+                              f"<br>Avg ฿{n / b if b else 0:,.0f}/บิล · {n / tot_n * 100 if tot_n else 0:.0f}% ของยอด</div></div>")
+                st.markdown(f"<div style='display:flex;gap:12px;margin-top:6px'>{cards}</div>", unsafe_allow_html=True)
+                snap_x = cu["snap"].max()
+                if pd.notna(snap_x):
+                    st.caption(f"ยอดรวม VAT · ข้อมูลส่วนนี้อัปเดตทุก ~4 นาที (ล่าสุด {pd.Timestamp(snap_x):%H:%M})")
+
+        # ── 💳 ช่องทางจ่ายเงิน | 🎁 Top โปรโมชั่น ──
+        c1, c2 = st.columns(2)
+        with c1:
+            _title("💳 ช่องทางชำระเงิน")
+            td = sm_extra("tender", today_s, sm_shops_sel)
+            if td.empty:
+                st.info("รอ ETL รอบถัดไป")
+            else:
+                td["amt"] = pd.to_numeric(td["amt"], errors="coerce").fillna(0)
+                td.loc[td["tendtype"] == "CHG", "amt"] *= -1                 # เงินทอน หักออกจากเงินสด
+                td["grp"] = [sm_pay_group(t, n) for t, n in zip(td["tendtype"], td["card_name"])]
+                pay = td[td["grp"].notna()].copy()
+                grp = pay.groupby("grp")["amt"].sum().sort_values(ascending=False)
+                grp = grp[grp > 0]
+                PAY_COLOR = {"บัตรเครดิต/เดบิต": "#2563eb", "เงินสด": "#16a34a", "QR / e-Wallet": "#7c3aed",
+                             "Delivery": "#ea580c", "Voucher": GOLD}
+                fig = go.Figure(go.Pie(labels=grp.index, values=grp.values, hole=0.55, sort=False,
+                                       marker=dict(colors=[PAY_COLOR.get(g, "#9ca3af") for g in grp.index],
+                                                   line=dict(color="#ffffff", width=2)),
+                                       hovertemplate="%{label}<br>฿%{value:,.0f} (%{percent})<extra></extra>"))
+                fig.add_annotation(text=f"<b>฿{grp.sum():,.0f}</b>", x=0.5, y=0.5, showarrow=False,
+                                   font=dict(size=15, color=GOLD_TXT))
+                fig.update_traces(textposition="inside", textinfo="percent")
+                st.plotly_chart(_layout(fig, 300, legend=dict(orientation="v", x=1, y=0.5),
+                                        uniformtext_minsize=11, uniformtext_mode="hide"),
+                                use_container_width=True, key="sm_pay")
+                pay["name"] = [("เงินสด" if g == "เงินสด" else str(n or c).strip())
+                               for g, n, c in zip(pay["grp"], pay["card_name"], pay["tend_code"])]
+                det = pay.groupby(["name", "grp"])["amt"].sum().reset_index().sort_values("amt", ascending=False)
+                det = det[det["amt"] > 0].head(6)
+                _rank_rows([(r.name, r.grp, f"฿{r.amt:,.0f}") for r in det.itertuples(index=False)])
+        with c2:
+            _title("🎁 Top โปรโมชั่น / ส่วนลด")
+            pr = sm_extra("promo", today_s, sm_shops_sel)
+            if pr.empty:
+                st.info("ยังไม่มีการใช้โปรโมชั่นวันนี้")
+            else:
+                pr["amt"] = pd.to_numeric(pr["amt"], errors="coerce").fillna(0)
+                pr = pr[pr["amt"] > 0].head(10)
+                _rank_rows([(f"{r.disc_name or r.disc_code}",
+                             f"{SM_DISC_TYPE.get(str(r.disc_type), str(r.disc_type or ''))} · {int(r.bills or 0):,} บิล",
+                             f"฿{r.amt:,.0f}") for r in pr.itertuples(index=False)])
+
+        # ── 🍽️ แยกหมวด | สินค้าขายดี ──
+        it = sm_extra("item", today_s, sm_shops_sel)
+        c1, c2 = st.columns([2, 3])
+        with c1:
+            _title("📊 แยกหมวดสินค้า", "ยอดก่อน VAT")
+            if it.empty:
+                st.info("รอ ETL รอบถัดไป")
+            else:
+                for col in ("qty", "net", "bills"):
+                    it[col] = pd.to_numeric(it[col], errors="coerce").fillna(0)
+                it["dept"] = it["dept"].fillna("").str.strip()
+                dept = it.groupby("dept")["net"].sum().sort_values(ascending=False)
+                dept = dept[dept > 0]
+                lbl = [("Other (Gift Voucher ฯลฯ)" if d == "Other" else (d or "ไม่ระบุ")) for d in dept.index]
+                fig = go.Figure(go.Pie(labels=lbl, values=dept.values, hole=0.5, sort=False,
+                                       marker=dict(colors=COLOR_SEQ, line=dict(color="#ffffff", width=2)),
+                                       hovertemplate="%{label}<br>฿%{value:,.0f} (%{percent})<extra></extra>"))
+                fig.update_traces(textposition="inside", textinfo="percent")
+                st.plotly_chart(_layout(fig, 340, legend=dict(orientation="v", x=1, y=0.5),
+                                        uniformtext_minsize=11, uniformtext_mode="hide"),
+                                use_container_width=True, key="sm_dept")
+        with c2:
+            _title("🏆 เมนูขายดีวันนี้")
+            if not it.empty:
+                menu = it[~it["dept"].isin(SM_NON_MENU_DEPTS)]
+                sort_by = st.radio("เรียงตาม", ["ยอดขาย", "จำนวน"], horizontal=True, key="sm_item_sort",
+                                   label_visibility="collapsed")
+                scol = "net" if sort_by == "ยอดขาย" else "qty"
+                depts = [d for d in ["Food", "Beverage", "Dessert", "Alcohol", "Special Menu"] if d in set(menu["dept"])]
+                tabs = st.tabs(["ทุกหมวด"] + depts)
+                for tab, d in zip(tabs, [None] + depts):
+                    with tab:
+                        sub = menu if d is None else menu[menu["dept"] == d]
+                        sub = sub.sort_values(scol, ascending=False).head(10)
+                        _rank_rows([(r.item_name, f"{r.dept} · {r.qty:,.0f} ชิ้น · {int(r.bills):,} บิล", f"฿{r.net:,.0f}")
+                                    for r in sub.itertuples(index=False)])
+
+        # ── 🧺 ซื้อคู่กัน ──
+        _title("🧺 ซื้อคู่กัน (Basket)", "เมนูที่อยู่ในบิลเดียวกันวันนี้ · ไม่นับ Gift Voucher / ท็อปปิ้ง")
+        pairs, per_item, nb = sm_basket(today_s, sm_shops_sel)
+        if pairs.empty or it.empty or not nb:
+            st.info("ข้อมูลยังน้อยเกินไป (ต้องมีอย่างน้อย 2 บิลที่สั่งคู่เดียวกัน)")
+        else:
+            nm = it.set_index("item_code")["item_name"].to_dict()
+            dp = it.set_index("item_code")["dept"].to_dict()
+            ok = lambda c: dp.get(c, "") not in SM_NON_MENU_DEPTS
+            pairs = pairs[[ok(a) and ok(b) for a, b in zip(pairs["ia"], pairs["ib"])]].copy()
+            pairs["bills"] = pd.to_numeric(pairs["bills"], errors="coerce").fillna(0)
+            pairs = pairs.sort_values("bills", ascending=False)
+            # เมนูที่อยู่ในบิลเกิน SM_BASKET_COMMON (เช่น น้ำเปล่า) ติดทุกคู่ → ไม่นับใน "คู่บ่อยสุด" (ยังเลือกดูทางขวาได้)
+            pi = dict(zip(per_item["item_code"], pd.to_numeric(per_item["bills"], errors="coerce").fillna(0)))
+            common = {c for c, b in pi.items() if b / nb >= SM_BASKET_COMMON}
+            top_pairs = pairs[[a not in common and b not in common for a, b in zip(pairs["ia"], pairs["ib"])]]
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(f"**คู่ที่สั่งด้วยกันบ่อยสุด** · จากทั้งหมด {nb:,} บิล")
+                _rank_rows([(f"{nm.get(r.ia, r.ia)} + {nm.get(r.ib, r.ib)}",
+                             f"{r.bills / nb * 100:.1f}% ของบิลทั้งหมด", f"{int(r.bills):,} บิล")
+                            for r in top_pairs.head(8).itertuples(index=False)])
+                if common:
+                    st.caption("ไม่นับเมนูที่อยู่ในบิลเกิน "
+                               f"{SM_BASKET_COMMON * 100:.0f}% (ติดทุกคู่): "
+                               + ", ".join(nm.get(c, c) for c in sorted(common, key=lambda c: -pi[c])))
+            with c2:
+                per_item["bills"] = pd.to_numeric(per_item["bills"], errors="coerce").fillna(0)
+                cand = per_item[[ok(c) for c in per_item["item_code"]]].sort_values("bills", ascending=False).head(20)
+                opts = list(cand["item_code"])
+                cnt = dict(zip(cand["item_code"], cand["bills"]))
+                if opts:
+                    pick = st.selectbox("เลือกเมนู → ดูว่ามักสั่งคู่กับอะไร", opts, key="sm_basket_pick",
+                                        format_func=lambda c: f"{nm.get(c, c)} ({int(cnt.get(c, 0))} บิล)")
+                    base_b = float(cnt.get(pick, 0)) or 1.0
+                    rel = pairs[(pairs["ia"] == pick) | (pairs["ib"] == pick)].copy()
+                    rel["other"] = [b if a == pick else a for a, b in zip(rel["ia"], rel["ib"])]
+                    _rank_rows([(nm.get(r.other, r.other), f"{int(r.bills):,} จาก {base_b:,.0f} บิล",
+                                 f"{r.bills / base_b * 100:.0f}%") for r in rel.head(8).itertuples(index=False)])
+
+        # ── 🏪 รายรับตามสาขา (ค้นหาแบบพิมพ์แล้วกรองทันที) ──
+        h1, h2 = st.columns([3, 2], vertical_alignment="bottom")
+        with h1:
+            _title("🏪 รายรับตามสาขา", f"เทียบเมื่อวาน ณ {cut:%H:%M}")
+        with h2:
+            q = live_search("sm_shop_q", placeholder="ค้นหา รหัส / ชื่อสาขา / แบรนด์")
+        if shops_df.empty:
+            st.info("ยังไม่มีข้อมูลรายสาขา")
+            return
+        tb = shops_df.copy()
+        tb["rank"] = range(1, len(tb) + 1)                  # อันดับจริงก่อนกรอง
+        terms = [t for t in str(q).lower().split() if t]
+        if terms:
+            hay = (tb["shop_code"].astype(str) + " " + tb["shop_name"].astype(str) + " " + tb["brand"].astype(str)).str.lower()
+            m = pd.Series(True, index=tb.index)
+            for t in terms:
+                m &= hay.str.contains(t, regex=False)
+            tb = tb[m]
+            st.caption(f"พบ {len(tb):,} สาขา")
+        pct = [(t - y) / y * 100 if y else None for t, y in zip(tb["today"], tb["ysame"])]
+        out = pd.DataFrame({
+            "อันดับ":              tb["rank"].values,
+            "รหัส":               tb["shop_code"].values,
+            "สาขา":               tb["shop_name"].values,
+            "แบรนด์":              tb["brand"].values,
+            "ยอดวันนี้":            tb["today"].map(lambda v: f"฿{v:,.0f}").values,
+            f"เมื่อวาน ณ {cut:%H:%M}": tb["ysame"].map(lambda v: f"฿{v:,.0f}").values,
+            "เทียบ %":             ["—" if v is None else f"{v:+.1f}%" for v in pct],
+            "บิล":                tb["bills"].map(lambda v: f"{int(v):,}").values,
+            "Avg/บิล (Base)":      [f"฿{b / n:,.0f}" if n else "—" for b, n in zip(tb["base"], tb["bills"])],
+            "Member":             tb["mem"].map(lambda v: f"{int(v):,}").values,
+            "บิลล่าสุด":            tb["last_bill"].values,
+        })
+        st.dataframe(out, use_container_width=True, hide_index=True, height=38 + 35 * max(1, len(out)),
+                     column_config={c: st.column_config.TextColumn(width="small") for c in
+                                    ["อันดับ", "รหัส", "ยอดวันนี้", f"เมื่อวาน ณ {cut:%H:%M}", "เทียบ %", "บิล",
+                                     "Avg/บิล (Base)", "Member", "บิลล่าสุด"]}
+                                   | {"อันดับ": st.column_config.NumberColumn(width="small")})
 
     render_sale_monitor()
 
