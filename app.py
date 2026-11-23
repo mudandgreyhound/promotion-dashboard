@@ -924,6 +924,7 @@ with st.sidebar:
         "🍽️ รายการขายดี",
         "⏱️ วิเคราะห์ช่วงเวลา",
         "👥 Member / Guest",
+        "🔁 ความถี่ลูกค้า",
         "🧾 Per Bill Analysis",
         "🎁 วิเคราะห์โปรโมชั่น",
         "🧑‍🏫 Menu Engineering",
@@ -948,7 +949,7 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 # LOAD & CLEAN DATA
 # ─────────────────────────────────────────────
-if page not in ("⚙️ Admin", "📡 Sale Monitor"):     # Sale Monitor อ่านตารางเรียลไทม์เอง ไม่ต้องโหลดบิลทั้งช่วง
+if page not in ("⚙️ Admin", "📡 Sale Monitor", "🔁 ความถี่ลูกค้า"):   # 2 หน้านี้โหลดข้อมูลเอง ไม่ใช้ช่วงวันที่ด้านซ้าย
     with st.spinner("🔄 กำลังโหลดข้อมูล..."):
         try:
             hdr, dtl, disc, pay, memtype, shop, itm, dep, cat, membertb = \
@@ -2255,6 +2256,23 @@ elif page == "👥 Member / Guest" and data_ok:
 # ═══════════════════════════════════════════════════════════════
 # PAGE 5: PER BILL ANALYSIS
 # ═══════════════════════════════════════════════════════════════
+elif page == "🔁 ความถี่ลูกค้า":
+    # วิเคราะห์ความถี่การมาของ Member (โค้ดอยู่ใน page_frequency.py) — ใช้ตัวกรองแบรนด์/สาขา ไม่ใช้ช่วงวันที่ด้านซ้าย
+    import importlib, page_frequency
+    page_frequency = importlib.reload(page_frequency)   # server ไม่มี watchdog → ไม่ reload โมดูลที่แก้เอง (cache ข้อมูลไม่หาย)
+    st.markdown("<div style='font-size:30px;font-weight:800;color:#1f2328;margin-bottom:2px'>🔁 ความถี่ลูกค้า</div>"
+                "<div style='color:#6b7280;font-size:15px;margin-bottom:8px'>Member มาซื้อบ่อยแค่ไหน · ใครกลับมา · "
+                "ขาประจำคนไหนหายไป (Guest ไม่มีรหัส จึงตามความถี่ไม่ได้)</div>", unsafe_allow_html=True)
+
+    def _fq_title(txt, sub=""):
+        st.markdown(f'<div class="section-title">{txt}'
+                    + (f' <span style="font-size:14px;font-weight:500;color:#6b7280">{sub}</span>' if sub else "")
+                    + '</div>', unsafe_allow_html=True)
+
+    page_frequency.render(st, mysql_cfg=MYSQL_CFG, shops_sel=tuple(selected_shops),
+                          brand_label=(brand_sel if selected_shops else "ทุกแบรนด์ · ทุกสาขา"),
+                          layout_base=LAYOUT_BASE, gold=GOLD, gold_txt=GOLD_TXT, title_fn=_fq_title)
+
 elif page == "🧾 Per Bill Analysis" and data_ok:
     st.markdown('<div class="section-title" style="font-size:24px;">🧾 Per Bill Analysis</div>', unsafe_allow_html=True)
 
