@@ -1,0 +1,8 @@
+# ธีมของ Streamlit ที่รันจากโฟลเดอร์นี้ (WorkingDirectory=/opt/promotion_dashboard)
+# - app.py (พอร์ต 83, promotion_dashboard.service) → ธีมสว่าง (สี/การ์ดอยู่ใน CSS ของ app.py)
+# - etl/etl_app.py (พอร์ต 89, gh-etl-admin.service) ส่ง --theme.base dark ทาง CLI ซึ่งชนะไฟล์นี้ → ยังมืดเหมือนเดิม
+#   จึงตั้งแค่ base + primaryColor (ไม่ตั้ง backgroundColor/textColor ที่จะไปทับธีมมืดของ ETL admin)
+# มีผลหลัง restart service (Streamlit อ่าน config ตอนเริ่ม)
+[theme]
+base = "light"
+primaryColor = "#b8901f"

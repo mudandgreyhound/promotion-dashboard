@@ -307,11 +307,18 @@ def build_monitor(shop_codes=None):
     # "เมื่อวาน ณ เวลาเดียวกัน" ตัดที่เวลา snapshot ของข้อมูลวันนี้ (ไม่ใช่นาฬิกา server → ETL ช้าก็ยังเทียบช่วงเท่ากัน)
     # ชั่วโมงปัจจุบันคิดตามสัดส่วนนาที — เดิม hour_slot<=ชม.ปัจจุบัน นับเมื่อวานเต็มชั่วโมง → pace ติดลบเกินจริง
     cut = s or dt.datetime.now()
-    cut_h, frac = cut.hour, (cut.minute * 60 + cut.second) / 3600
-    yst = q(f"""SELECT SUM(CASE WHEN hour_slot < %s THEN net_sales
-                               WHEN hour_slot = %s THEN net_sales * %s ELSE 0 END) s
-              FROM sale_monitor_interval WHERE biz_date=%s{clause}""",
-            (cut_h, cut_h, frac, yday, *params)) or [{}]
+    # 1) ตรงนาทีจาก sale_monitor_minute (เหมือนหน้า Sale Monitor ใน app.py) 2) ไม่มี → ประมาณจากรายชั่วโมง
+    cut_hhmm = cut.hour * 100 + cut.minute
+    yst = q(f"""SELECT COUNT(*) n, SUM(CASE WHEN minute_slot < %s THEN net_sales
+                               WHEN minute_slot = %s THEN net_sales * %s / 60 ELSE 0 END) s
+              FROM sale_monitor_minute WHERE biz_date=%s{clause}""",
+            (cut_hhmm, cut_hhmm, cut.second, yday, *params))
+    if not yst or not int(yst[0].get("n") or 0):
+        cut_h, frac = cut.hour, (cut.minute * 60 + cut.second) / 3600
+        yst = q(f"""SELECT SUM(CASE WHEN hour_slot < %s THEN net_sales
+                                   WHEN hour_slot = %s THEN net_sales * %s ELSE 0 END) s
+                  FROM sale_monitor_interval WHERE biz_date=%s{clause}""",
+                (cut_h, cut_h, frac, yday, *params)) or [{}]
     return {"snapshot": s.strftime("%H:%M") if s else dt.datetime.now().strftime("%H:%M"),
             "totalToday": tmap.get(today,0.0), "ydayFull": tmap.get(yday,0.0),
             "ydaySameTime": float((yst[0] or {}).get("s") or 0),

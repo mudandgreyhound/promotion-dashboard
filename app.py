@@ -299,97 +299,97 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #0d1117; color: #e6edf3; }
+/* ── ธีมสว่าง (2026-11-23): พื้นครีมอ่อน การ์ดขาว ตัวหนังสือเข้ม accent ทอง/ดำแบบแบรนด์ Greyhound ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+html, body, [class*="css"], .stApp, button, input, textarea, select { font-family: 'Inter', 'Noto Sans Thai', sans-serif; }
+.stApp { background: #faf8f4; color: #1f2328; }
+.stApp h1, .stApp h2, .stApp h3, .stApp h4 { color: #1f2328; }
+.stMarkdown p, .stMarkdown li { font-size: 15px; line-height: 1.6; }
 
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
-    border-right: 1px solid #30363d;
-}
-section[data-testid="stSidebar"] * { color: #c9d1d9 !important; }
+section[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid #e6dfd1; color: #1f2328; }
+section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p { color: #374151; }
 
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, #161b22, #1c2230);
-    border: 1px solid #30363d; border-radius: 16px; padding: 20px !important;
-    transition: all .3s ease;
+    background: #ffffff; border: 1px solid #ebe5d9; border-radius: 14px; padding: 16px 18px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05); transition: border-color .2s ease;
 }
-[data-testid="stMetric"]:hover { border-color: #d4af37; transform: translateY(-2px); }
-[data-testid="stMetricLabel"] { color: #8b949e !important; font-size: 13px !important; font-weight: 500 !important; }
-[data-testid="stMetricValue"] { color: #d4af37 !important; font-size: 28px !important; font-weight: 700 !important; }
+[data-testid="stMetric"]:hover { border-color: #d9c27a; }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p { color: #6b5e48 !important; font-size: 14px !important; font-weight: 600 !important; }
+[data-testid="stMetricValue"] { color: #1f2328 !important; font-size: 24px !important; font-weight: 800 !important; }
 [data-testid="stMetricDelta"]  { font-size: 13px !important; }
 
-.card { background: linear-gradient(135deg,#161b22,#1c2230); border:1px solid #30363d; border-radius:16px; padding:20px; margin:8px 0; }
-.card-gold     { border-left: 4px solid #d4af37; }
-.card-silver   { border-left: 4px solid #9e9e9e; }
-.card-platinum { border-left: 4px solid #e5e4e2; }
+.card { background:#ffffff; border:1px solid #ebe5d9; border-radius:14px; padding:18px; margin:8px 0; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.card-gold     { border-left: 4px solid #c9a227; }
+.card-silver   { border-left: 4px solid #9ca3af; }
+.card-platinum { border-left: 4px solid #78716c; }
 
 .dash-header {
-    background: linear-gradient(135deg, #1a0a00, #3d2200, #1a0a00);
-    border: 1px solid #d4af37; border-radius: 20px;
-    padding: 28px 36px; margin-bottom: 24px; text-align: center;
+    background: linear-gradient(135deg, #fffaf0, #f6ecd2); border: 1px solid #ead9a8; border-radius: 18px;
+    padding: 24px 32px; margin-bottom: 22px; text-align: center;
 }
-.dash-header h1 { color:#d4af37; font-size:32px; font-weight:800; margin:0; letter-spacing:2px; }
-.dash-header p  { color:#a0824a; font-size:14px; margin:4px 0 0; }
+.dash-header h1 { color:#1f2328; font-size:30px; font-weight:800; margin:0; letter-spacing:1.5px; }
+.dash-header p  { color:#7c6f5b; font-size:15px; margin:6px 0 0; }
 
 .section-title {
-    font-size: 18px; font-weight: 700; color: #d4af37;
-    border-bottom: 2px solid #30363d; padding-bottom: 8px; margin: 24px 0 16px;
+    font-size: 19px; font-weight: 800; color: #1f2328;
+    border-bottom: 2px solid #ead9a8; padding-bottom: 8px; margin: 24px 0 14px;
 }
 
-.badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:600; letter-spacing:.5px; }
-.badge-gold     { background:#d4af3730; color:#d4af37; border:1px solid #d4af37; }
-.badge-silver   { background:#9e9e9e30; color:#c9d1d9; border:1px solid #9e9e9e; }
-.badge-black    { background:#21262d;   color:#c9d1d9; border:1px solid #30363d; }
-.badge-platinum { background:#e5e4e230; color:#e5e4e2; border:1px solid #e5e4e2; }
-.badge-senior   { background:#58a6ff30; color:#58a6ff; border:1px solid #58a6ff; }
+.badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; letter-spacing:.3px; }
+.badge-gold     { background:#fdf3d7; color:#7a5c00; border:1px solid #e9cf7e; }
+.badge-silver   { background:#f3f4f6; color:#374151; border:1px solid #d1d5db; }
+.badge-black    { background:#1f2328; color:#ffffff; border:1px solid #1f2328; }
+.badge-platinum { background:#f5f5f4; color:#44403c; border:1px solid #d6d3d1; }
+.badge-senior   { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
 
-.rank-row { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; margin:6px 0; background:#161b22; border:1px solid #30363d; border-radius:10px; transition:all .2s; }
-.rank-row:hover { border-color: #d4af37; }
-.rank-num { font-size:20px; font-weight:800; color:#8b949e; width:36px; }
-.rank-num.top1 { color:#d4af37; } .rank-num.top2 { color:#9e9e9e; } .rank-num.top3 { color:#cd7f32; }
-.rank-name { flex:1; font-weight:600; color:#e6edf3; font-size:14px; }
-.rank-sub  { font-size:11px; color:#8b949e; }
-.rank-amt  { font-weight:700; color:#d4af37; font-size:15px; }
+.rank-row { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; margin:6px 0;
+            background:#ffffff; border:1px solid #ebe5d9; border-radius:10px; transition:all .2s; }
+.rank-row:hover { border-color: #c9a227; background:#fffdf7; }
+.rank-num { font-size:20px; font-weight:800; color:#9ca3af; width:40px; }
+.rank-num.top1 { color:#b8901f; } .rank-num.top2 { color:#6b7280; } .rank-num.top3 { color:#b45309; }
+.rank-name { flex:1; font-weight:600; color:#1f2328; font-size:15px; }
+.rank-sub  { font-size:12.5px; color:#6b7280; }
+.rank-amt  { font-weight:800; color:#8a6a00; font-size:16px; }
 
-.promo-card { background:linear-gradient(135deg,#1a2332,#1c2230); border:1px solid #30363d; border-radius:14px; padding:18px; margin:8px 0; display:flex; align-items:center; gap:16px; }
+.promo-card { background:#ffffff; border:1px solid #ebe5d9; border-radius:14px; padding:18px; margin:8px 0;
+              display:flex; align-items:center; gap:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
 .promo-icon { font-size:28px; }
-.promo-info h4 { margin:0 0 4px; color:#e6edf3; font-size:15px; font-weight:600; }
-.promo-info p  { margin:0; color:#8b949e; font-size:12px; }
+.promo-info h4 { margin:0 0 4px; color:#1f2328; font-size:15px; font-weight:700; }
+.promo-info p  { margin:0; color:#6b7280; font-size:13px; }
 .promo-stat { margin-left:auto; text-align:right; }
-.promo-stat .amt { font-size:20px; font-weight:800; color:#d4af37; }
-.promo-stat .lbl { font-size:11px; color:#8b949e; }
+.promo-stat .amt { font-size:20px; font-weight:800; color:#8a6a00; }
+.promo-stat .lbl { font-size:12px; color:#6b7280; }
 
-.stTabs [data-baseweb="tab-list"] { background:#161b22 !important; border-radius:12px; gap:4px; }
-.stTabs [data-baseweb="tab"] { border-radius:8px !important; color:#8b949e !important; font-weight:600 !important; font-size:13px !important; }
-.stTabs [aria-selected="true"] { background:#d4af37 !important; color:#0d1117 !important; }
+.stTabs [data-baseweb="tab-list"] { background:#f3eee3 !important; border-radius:12px; gap:4px; padding:4px; }
+.stTabs [data-baseweb="tab"] { border-radius:8px !important; color:#4b5563 !important; font-weight:600 !important; font-size:14px !important; }
+.stTabs [aria-selected="true"] { background:#1f2328 !important; color:#ffffff !important; }
 
-.stDateInput input, .stSelectbox div { background:#161b22 !important; border-color:#30363d !important; }
-::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#0d1117; }
-::-webkit-scrollbar-thumb { background:#30363d; border-radius:3px; }
+::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-track { background:#faf8f4; }
+::-webkit-scrollbar-thumb { background:#d6cdb9; border-radius:4px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # COLORS
 # ─────────────────────────────────────────────
-GOLD      = "#d4af37"
-DARK_BG   = "#0d1117"
-BLUE      = "#58a6ff"
-GREEN     = "#3fb950"
-RED       = "#f85149"
-ORANGE    = "#d29922"
-SILVER    = "#9e9e9e"
-COLOR_SEQ = [GOLD, BLUE, GREEN, ORANGE, RED, SILVER, "#bc8cff", "#ff7b72", "#ffa657"]
+GOLD      = "#b8901f"     # ทองสำหรับกราฟ/เส้น (บนพื้นขาว)
+GOLD_TXT  = "#8a6a00"     # ทองเข้มสำหรับตัวหนังสือ (contrast 5:1 บนพื้นขาว)
+DARK_BG   = "#ffffff"     # สีเส้นขอบชิ้นพาย = สีพื้นการ์ด
+BLUE      = "#2563eb"
+GREEN     = "#16a34a"
+RED       = "#dc2626"
+ORANGE    = "#d97706"
+SILVER    = "#9ca3af"
+COLOR_SEQ = [GOLD, BLUE, GREEN, ORANGE, RED, "#6b7280", "#7c3aed", "#e11d48", "#0891b2"]
 
 LAYOUT_BASE = dict(
     paper_bgcolor = "rgba(0,0,0,0)",
     plot_bgcolor  = "rgba(0,0,0,0)",
-    font  = dict(family="Inter", color="#c9d1d9", size=12),
-    margin= dict(l=0, r=0, t=36, b=0),
-    xaxis = dict(gridcolor="#21262d", zerolinecolor="#30363d", tickfont=dict(color="#8b949e")),
-    yaxis = dict(gridcolor="#21262d", zerolinecolor="#30363d", tickfont=dict(color="#8b949e")),
-    legend= dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#c9d1d9")),
+    font  = dict(family="Inter, Noto Sans Thai, sans-serif", color="#374151", size=13),
+    margin= dict(l=0, r=0, t=40, b=0),
+    xaxis = dict(gridcolor="#ece6da", zerolinecolor="#ddd5c5", tickfont=dict(color="#6b7280")),
+    yaxis = dict(gridcolor="#ece6da", zerolinecolor="#ddd5c5", tickfont=dict(color="#6b7280")),
+    legend= dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#374151")),
 )
 
 # ─────────────────────────────────────────────
@@ -569,6 +569,83 @@ def clean_data(hdr, dtl, disc, pay, memtype, shop, itm, dep, cat, membertb):
     return hdr, dtl, disc, pay, memtype, shop, itm, dep, cat, membertb
 
 
+# ─────────────────────────────────────────────
+# SALE MONITOR (เรียลไทม์) — อ่าน sale_monitor_rt / _minute / _interval ที่ etl/sale_monitor_etl.py
+# เติมทุก 30 วิ (06–23 น.) แบบเดียวกับหน้า Sale Monitor ของ Dunkin (/opt/exception_report)
+# ─────────────────────────────────────────────
+SM_REFRESH_SEC = 30          # รอบ auto-refresh หน้า (ETL รันทุก 30 วิ)
+SM_STALE_MIN   = 5           # snapshot เก่ากว่านี้ (ช่วงร้านเปิด) = เตือนว่า ETL ค้าง
+SM_TOAST_MAX_GAP_MIN = 5     # snapshot ห่างกว่านี้ (แท็บพักนาน) = ตั้งต้นใหม่ ไม่เด้งก้อนใหญ่
+
+
+def _sm_q(sql, params=()):
+    conn = pymysql.connect(**MYSQL_CFG)
+    try:
+        return pd.read_sql(sql, conn, params=params)
+    finally:
+        conn.close()
+
+
+def _sm_shops_clause(col, shops):
+    if not shops:
+        return "", ()
+    return f" AND {col} IN ({','.join(['%s'] * len(shops))})", tuple(shops)
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def sm_totals(biz, shops):
+    cl, p = _sm_shops_clause("shop_code", shops)
+    return _sm_q(f"""
+        SELECT COALESCE(SUM(net_sales),0) net, COALESCE(SUM(gross_sales),0) gross,
+               COALESCE(SUM(discount),0) disc, COALESCE(SUM(base_sales),0) base,
+               COALESCE(SUM(bill_count),0) bills, COALESCE(SUM(cust_count),0) pax,
+               COALESCE(SUM(member_bills),0) mem, COUNT(*) shops,
+               MAX(snapshot_at) snap, MAX(last_bill_time) last_bill
+        FROM sale_monitor_rt WHERE biz_date=%s{cl}""", (biz, *p))
+
+
+@st.cache_data(ttl=SM_REFRESH_SEC, show_spinner=False)
+def sm_ytd_same_time(biz_y, cut_hhmm, cut_sec, shops):
+    """ยอดเมื่อวาน "ณ เวลาเดียวกัน" → (ยอด, exact)
+       1) ตรงนาที: sale_monitor_minute — นาทีก่อน cut เต็ม ๆ + นาที cut ตามสัดส่วนวินาที
+       2) ไม่มีข้อมูลรายนาทีของวันนั้น → ประมาณจาก sale_monitor_interval (exact=False → ขึ้น ≈)"""
+    cl, p = _sm_shops_clause("shop_code", shops)
+    try:
+        df = _sm_q(f"""SELECT COUNT(*) n, SUM(CASE WHEN minute_slot < %s THEN net_sales
+                                    WHEN minute_slot = %s THEN net_sales * %s / 60 ELSE 0 END) s
+                       FROM sale_monitor_minute WHERE biz_date=%s{cl}""",
+                   (cut_hhmm, cut_hhmm, cut_sec, biz_y, *p))
+        if int(df["n"].iloc[0] or 0) > 0:
+            return float(df["s"].iloc[0] or 0), True
+    except Exception:
+        pass
+    h, mi = divmod(int(cut_hhmm), 100)
+    df = _sm_q(f"""SELECT SUM(CASE WHEN hour_slot < %s THEN net_sales
+                                   WHEN hour_slot = %s THEN net_sales * %s / 60 ELSE 0 END) s
+                   FROM sale_monitor_interval WHERE biz_date=%s{cl}""",
+               (h, h, mi + cut_sec / 60, biz_y, *p))
+    return float(df["s"].iloc[0] or 0), False
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def sm_shop_now(biz, shops):
+    """ยอดสะสมวันนี้รายสาขา + snapshot — ใช้ทำ toast "ยอดเข้า" (diff ระหว่าง snapshot)"""
+    cl, p = _sm_shops_clause("shop_code", shops)
+    return _sm_q(f"SELECT shop_code, shop_name, net_sales net, snapshot_at snap "
+                 f"FROM sale_monitor_rt WHERE biz_date=%s{cl}", (biz, *p))
+
+
+def sm_short_name(name, maxlen=22):
+    """'EM-Emporium' → 'Emporium' (ตัดรหัสย่อหน้าชื่อ) + escape markdown สำหรับ toast"""
+    import re
+    s = " ".join(re.sub(r'^(?:\(?[A-Za-z0-9]+\)?\s*-\s*)+', "", str(name or "")).split())
+    if len(s) > maxlen:
+        s = s[:maxlen - 1].rstrip() + "…"
+    for ch in "\\*_`[]$":
+        s = s.replace(ch, "\\" + ch)
+    return s
+
+
 @st.cache_data(ttl=300, show_spinner=False, max_entries=8)
 def load_clean(date_from: str, date_to: str, shop_codes: tuple):
     """โหลด + clean แล้ว cache ผลลัพธ์ — เดิม clean_data (merge หลายรอบ) รันใหม่ทุกครั้งที่กด widget"""
@@ -582,14 +659,14 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align:center;padding:16px 0 8px;">
         <div style="font-size:40px;">🐾</div>
-        <div style="font-size:16px;font-weight:800;color:#d4af37;letter-spacing:2px;">GREYHOUND CAFÉ</div>
-        <div style="font-size:11px;color:#8b949e;margin-top:4px;">Promotion Intelligence</div>
+        <div style="font-size:16px;font-weight:800;color:#8a6a00;letter-spacing:2px;">GREYHOUND CAFÉ</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px;">Promotion Intelligence</div>
     </div>
-    <hr style="border-color:#30363d;margin:12px 0;">
+    <hr style="border-color:#e6dfd1;margin:12px 0;">
     """, unsafe_allow_html=True)
 
     # ── Date Filter ──
-    st.markdown("<div style='font-size:11px;color:#8b949e;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>📅 ช่วงเวลา</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>📅 ช่วงเวลา</div>", unsafe_allow_html=True)
 
     preset = st.selectbox("Quick Select", [
         "วันนี้", "เมื่อวาน", "7 วันล่าสุด", "30 วันล่าสุด",
@@ -615,19 +692,19 @@ with st.sidebar:
         d_from = st.date_input("ตั้งแต่", today - timedelta(days=6))
         d_to   = st.date_input("ถึง",     today)
 
-    st.markdown(f"<div style='font-size:11px;color:#d4af37;text-align:center;margin:4px 0 8px;'>{d_from.strftime('%d/%m/%Y')} – {d_to.strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:11px;color:#8a6a00;text-align:center;margin:4px 0 8px;'>{d_from.strftime('%d/%m/%Y')} – {d_to.strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
 
     # ── Brand Filter ──
-    st.markdown("<hr style='border-color:#30363d;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#8b949e;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏷️ แบรนด์</div>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏷️ แบรนด์</div>", unsafe_allow_html=True)
 
     BRAND_MAP = {"ทั้งหมด": None, "🐾 Greyhound (GC)": "GC", "🌿 Anotherhound (AH)": "AH", "☕ Beanhound (BE)": "BE"}
     brand_sel = st.selectbox("Brand", list(BRAND_MAP.keys()), label_visibility="collapsed", key="brand_sel")
     selected_brand = BRAND_MAP[brand_sel]
 
     # ── Shop Filter ──
-    st.markdown("<hr style='border-color:#30363d;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#8b949e;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏪 สาขา</div>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏪 สาขา</div>", unsafe_allow_html=True)
 
     shops_df = get_shops()
     # กรองตาม brand ที่เลือก
@@ -649,9 +726,10 @@ with st.sidebar:
         selected_shops = tuple(s.split(" – ")[0] for s in shop_sel)
 
     # ── Navigation ──
-    st.markdown("<hr style='border-color:#30363d;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#8b949e;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>NAVIGATION</div>", unsafe_allow_html=True)
-    page = st.radio("", [
+    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>NAVIGATION</div>", unsafe_allow_html=True)
+    page = st.radio("หน้า", [
+        "📡 Sale Monitor",
         "🏠 Overview",
         "🍽️ รายการขายดี",
         "⏱️ วิเคราะห์ช่วงเวลา",
@@ -663,14 +741,19 @@ with st.sidebar:
         "⚙️ Admin",
     ], label_visibility="collapsed")
 
-    st.markdown("<hr style='border-color:#30363d;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:11px;color:#8b949e;'>อัพเดท: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)
+    if page == "📡 Sale Monitor":
+        st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
+        st.checkbox(f"🔄 auto-refresh {SM_REFRESH_SEC} วิ", value=True, key="sm_auto")
+        st.checkbox("🔔 เด้งแจ้งยอดเข้ารายสาขา", value=True, key="sm_toast_on")
+
+    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:11px;color:#6b7280;'>อัพเดท: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
 # LOAD & CLEAN DATA
 # ─────────────────────────────────────────────
-if page != "⚙️ Admin":
+if page not in ("⚙️ Admin", "📡 Sale Monitor"):     # Sale Monitor อ่านตารางเรียลไทม์เอง ไม่ต้องโหลดบิลทั้งช่วง
     with st.spinner("🔄 กำลังโหลดข้อมูล..."):
         try:
             hdr, dtl, disc, pay, memtype, shop, itm, dep, cat, membertb = \
@@ -704,9 +787,164 @@ if page != "⚙️ Admin":
             st.error(f"❌ เชื่อมต่อ MySQL ไม่ได้: {e}")
 
 # ═══════════════════════════════════════════════════════════════
+# PAGE 0: SALE MONITOR (เรียลไทม์ วันนี้ vs เมื่อวาน) — แบบเดียวกับ Dunkin
+#   ยอดวันนี้ = sale_monitor_rt (ETL ทุก 30 วิ) · เมื่อวาน ณ เวลาเดียวกัน = sale_monitor_minute ตัดที่เวลา snapshot
+#   ไม่ใช้ช่วงวันที่ใน sidebar (ดูวันนี้เสมอ) แต่ใช้ตัวกรองแบรนด์/สาขา
+# ═══════════════════════════════════════════════════════════════
+if page == "📡 Sale Monitor":
+    sm_shops_sel = tuple(selected_shops)          # ว่าง = ทุกสาขา
+    _flt = (f"{brand_sel} · {len(sm_shops_sel)} สาขา" if sm_shops_sel else "ทุกแบรนด์ · ทุกสาขา")
+    st.markdown(
+        "<div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px'>"
+        "<span style='font-size:30px;font-weight:800;color:#1f2328'>📡 Sale Monitor</span>"
+        "<span style='font-size:16px;color:#6b7280'>เรียลไทม์ · วันนี้ vs เมื่อวาน</span>"
+        f"<span style='margin-left:auto;background:#fdf6e3;color:#8a6a00;border:1px solid #ead9a8;"
+        f"border-radius:20px;padding:3px 14px;font-size:14px;font-weight:700'>🏷️ {_flt}</span></div>",
+        unsafe_allow_html=True)
+
+    @st.fragment(run_every=SM_REFRESH_SEC if st.session_state.get("sm_auto", True) else None)
+    def render_sale_monitor():
+        now = datetime.now()
+        today_s = now.date().isoformat()
+        yday_s  = (now.date() - timedelta(days=1)).isoformat()
+        try:
+            tot   = sm_totals(today_s, sm_shops_sel)
+            tot_y = sm_totals(yday_s, sm_shops_sel)
+        except Exception as e:
+            st.error(f"❌ อ่านข้อมูล Sale Monitor ไม่ได้: {e}")
+            return
+
+        def g(df, col):
+            v = df[col].iloc[0] if not df.empty else None
+            return float(v) if v is not None and pd.notna(v) else 0.0
+
+        net, gross, disc, base = g(tot, "net"), g(tot, "gross"), g(tot, "disc"), g(tot, "base")
+        bills, pax, mem, nshop = int(g(tot, "bills")), int(g(tot, "pax")), int(g(tot, "mem")), int(g(tot, "shops"))
+        net_y_full = g(tot_y, "net")
+        snap = tot["snap"].iloc[0] if not tot.empty else None
+        snap_ts = pd.Timestamp(snap) if snap is not None and pd.notna(snap) else None
+        last_bill = tot["last_bill"].iloc[0] if not tot.empty else None
+        if isinstance(last_bill, (pd.Timedelta, timedelta)):          # MySQL TIME → timedelta
+            _s = int(pd.Timedelta(last_bill).total_seconds())
+            last_bill = f"{_s // 3600:02d}:{_s % 3600 // 60:02d}:{_s % 60:02d}"
+
+        if bills == 0 and net == 0:
+            st.info(f"🌅 ยังไม่มีบิลของวันนี้ ({now:%d/%m/%Y}) — เมื่อวานทั้งวัน ฿{net_y_full:,.0f}")
+            return
+        if snap_ts is not None and 6 <= now.hour < 23:
+            age_min = (pd.Timestamp(now) - snap_ts).total_seconds() / 60
+            if age_min > SM_STALE_MIN:
+                st.warning(f"⚠️ ข้อมูลไม่อัปเดตมา {age_min:.0f} นาที (snapshot ล่าสุด {snap_ts:%H:%M}) — "
+                           "ตรวจ cron etl/sale_monitor_etl.py")
+
+        # จุดตัด "เวลาเดียวกัน" = เวลา snapshot ของข้อมูลวันนี้ (ไม่ใช่นาฬิกา server → ETL ช้าก็ยังเทียบช่วงเท่ากัน)
+        cut = snap_ts if snap_ts is not None else pd.Timestamp(now)
+        cut_hhmm, cut_sec = cut.hour * 100 + cut.minute, cut.second
+        net_y_same, exact = sm_ytd_same_time(yday_s, cut_hhmm, cut_sec, sm_shops_sel)
+
+        avg_bill  = base / bills if bills else 0
+        disc_pct  = disc / gross * 100 if gross else 0
+        disc_bill = disc / bills if bills else 0
+        mem_pct   = mem / bills * 100 if bills else 0
+        pace_pct  = (net - net_y_same) / net_y_same * 100 if net_y_same else 0
+        pace_diff = net - net_y_same
+        up        = pace_pct >= 0
+        pace_col, pace_bg = ("#15803d", "#ecfdf3") if up else ("#b91c1c", "#fef2f2")
+        snap_str  = snap_ts.strftime("%H:%M:%S") if snap_ts is not None else "--:--"
+        approx    = "" if exact else "≈ "
+        ref_txt   = (f"{approx}เมื่อวาน ณ {cut:%H:%M} ฿{net_y_same:,.0f} · "
+                     f"{'+' if pace_diff >= 0 else '−'}฿{abs(pace_diff):,.0f}")
+
+        LB   = "color:#6b5e48;font-size:15px;font-weight:700"
+        CARD = ("background:#fff;border:1px solid #ebe5d9;border-radius:14px;padding:14px 18px;"
+                "box-shadow:0 1px 3px rgba(0,0,0,.05);flex:1;min-width:170px")
+        BIG  = "font-size:30px;font-weight:800;color:#1f2328;line-height:1.25"
+        st.markdown(f"""
+<div style="color:#1f2328">
+  <div style="background:linear-gradient(90deg,#fffaf0,#f7efdc);border:1px solid #ead9a8;border-radius:16px;
+              padding:16px 22px;margin:6px 0 14px;display:flex;align-items:center;justify-content:space-between;
+              flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+      <div><div style="{LB}">Gross · ก่อนหักส่วนลด</div>
+           <div style="font-size:28px;font-weight:800;color:#4b5563">฿{gross:,.0f}</div></div>
+      <div style="color:#b8901f;font-size:26px">→</div>
+      <div><div style="{LB}">ส่วนลดที่ให้ลูกค้า</div>
+           <div style="font-size:28px;font-weight:800;color:#be185d">฿{disc:,.0f}</div></div>
+      <div style="color:#b8901f;font-size:26px">→</div>
+      <div><div style="{LB}">Base Sale · ไม่รวม VAT</div>
+           <div style="font-size:28px;font-weight:800;color:#8a6a00">฿{base:,.0f}</div></div>
+    </div>
+    <div style="display:flex;gap:26px;text-align:right">
+      <div><div style="{LB}">ส่วนลด / Gross</div><div style="font-size:24px;font-weight:800">{disc_pct:.1f}%</div></div>
+      <div><div style="{LB}">ส่วนลด / บิล</div><div style="font-size:24px;font-weight:800">฿{disc_bill:,.0f}</div></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+    <div style="{CARD}"><div style="{LB}">จำนวนบิล</div><div style="{BIG}">{bills:,}</div></div>
+    <div style="{CARD}"><div style="{LB}">Avg / บิล (Base)</div><div style="{BIG}">฿{avg_bill:,.0f}</div></div>
+    <div style="{CARD}"><div style="{LB}">ลูกค้า (Pax)</div><div style="{BIG}">{pax:,}</div></div>
+    <div style="{CARD}"><div style="{LB}">บิล Member</div><div style="{BIG}">{mem:,}
+         <span style="font-size:16px;color:#6b7280;font-weight:700">({mem_pct:.0f}%)</span></div></div>
+    <div style="{CARD}"><div style="{LB}">สาขาขายแล้ว</div><div style="{BIG}">{nshop:,}</div></div>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+    <span style="font-size:21px;font-weight:800;color:#1f2328">📈 เทียบเมื่อวาน</span>
+    <span style="color:#6b7280;font-size:15px">ยอดขายรวม VAT (Net Sale)</span>
+    <span style="margin-left:auto;color:#15803d;font-size:15px;font-weight:700">🟢 live · อัปเดต {snap_str}
+      <span style="color:#6b7280;font-weight:400"> · บิลล่าสุด {last_bill or '-'}</span></span>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div style="{CARD}"><div style="{LB}">ยอดวันนี้ (ณ {cut:%H:%M})</div>
+         <div style="font-size:34px;font-weight:800;color:#8a6a00;line-height:1.25">฿{net:,.0f}</div></div>
+    <div style="{CARD}"><div style="{LB}">เมื่อวาน (ทั้งวัน)</div>
+         <div style="font-size:34px;font-weight:800;color:#1f2328;line-height:1.25">฿{net_y_full:,.0f}</div></div>
+    <div style="{CARD}"><div style="{LB}">เทียบเมื่อวาน ณ เวลาเดียวกัน</div>
+         <div style="font-size:34px;font-weight:800;color:{pace_col};line-height:1.25">{'▲' if up else '▼'} {abs(pace_pct):.1f}%</div>
+         <div style="color:{pace_col};background:{pace_bg};font-size:15px;border-radius:6px;padding:2px 8px;
+                     display:inline-block;margin-top:4px">{ref_txt}</div></div>
+  </div></div>""", unsafe_allow_html=True)
+
+        # ── 💰 toast ยอดเข้า: ยอดสะสมรายสาขาที่เพิ่มขึ้นจาก snapshot รอบก่อน (จำใน session_state) ──
+        #  ผลรวมใน toast = ยอดวันนี้ที่เพิ่มขึ้นจริง (รวมบิลที่สาขาส่งขึ้นมาช้า) — เปิดหน้าครั้งแรก/เปลี่ยนตัวกรอง/
+        #  แท็บพักเกิน SM_TOAST_MAX_GAP_MIN นาที = ตั้งต้นใหม่ ยังไม่เด้ง
+        if st.session_state.get("sm_auto", True) and st.session_state.get("sm_toast_on", True):
+            try:
+                cur_df = sm_shop_now(today_s, sm_shops_sel)
+                if not cur_df.empty:
+                    snap_n = pd.Timestamp(cur_df["snap"].max())
+                    cur = {str(r.shop_code): (float(r.net or 0), r.shop_name) for r in cur_df.itertuples(index=False)}
+                    key = (today_s, sm_shops_sel)
+                    prev = st.session_state.get("sm_toast")
+                    st.session_state["sm_toast"] = {"key": key, "snap": snap_n, "cur": cur}
+                    if prev and prev.get("key") == key:
+                        if snap_n == prev["snap"]:
+                            st.session_state["sm_toast"] = prev          # ETL ยังไม่มี snapshot ใหม่
+                        elif snap_n > prev["snap"]:
+                            gap = max(1, round((snap_n - prev["snap"]).total_seconds() / 60))
+                            if gap <= SM_TOAST_MAX_GAP_MIN:
+                                inc = sorted(((v - prev["cur"].get(c, (0.0, ""))[0], c, n)
+                                              for c, (v, n) in cur.items()), reverse=True)
+                                inc = [x for x in inc if x[0] >= 0.5]
+                                if inc:
+                                    tot_inc = sum(x[0] for x in inc)
+                                    rows = [f"{c} {sm_short_name(n)} +฿{d:,.0f}" for d, c, n in inc[:2]]
+                                    msg = f"**+฿{tot_inc:,.0f} ใน {gap} นาที** · " + " · ".join(rows)
+                                    if len(inc) > 2:
+                                        msg += f" · อีก {len(inc) - 2} สาขา"
+                                    st.toast(msg, icon="💰", duration="long")
+            except Exception:
+                pass   # toast เป็นส่วนเสริม — พังก็ไม่ให้หน้าหลักเสีย
+
+        st.caption(f"เมื่อวาน ณ เวลาเดียวกัน = ยอดรายนาทีของเมื่อวานตัดที่เวลา snapshot วันนี้"
+                   f"{'' if exact else ' (ไม่มีข้อมูลรายนาที → ประมาณจากรายชั่วโมง ≈)'} · "
+                   f"หน้านี้ดูวันนี้เสมอ (ไม่ใช้ช่วงวันที่ด้านซ้าย) แต่ใช้ตัวกรองแบรนด์/สาขา")
+
+    render_sale_monitor()
+
+# ═══════════════════════════════════════════════════════════════
 # PAGE 1: OVERVIEW
 # ═══════════════════════════════════════════════════════════════
-if page == "🏠 Overview" and data_ok:
+elif page == "🏠 Overview" and data_ok:
     st.markdown(f"""
     <div class="dash-header">
         <h1>🐾 GREYHOUND CAFÉ</h1>
@@ -740,23 +978,29 @@ if page == "🏠 Overview" and data_ok:
                       .groupby("BillHour")["_NetBAmt"].sum().reset_index())
             fig = go.Figure(go.Bar(
                 x=hourly["BillHour"], y=hourly["_NetBAmt"],
-                marker=dict(color=hourly["_NetBAmt"], colorscale=[[0,"#1c2230"],[1,GOLD]]),
+                marker=dict(color=hourly["_NetBAmt"], colorscale=[[0,"#e8d9a8"],[1,GOLD]]),
                 text=hourly["_NetBAmt"].apply(lambda x: f"฿{x:,.0f}"),
-                textposition="outside", textfont=dict(color="#c9d1d9", size=10)
+                textposition="outside", textfont=dict(color="#374151", size=10)
             ))
             fig.update_layout(**LAYOUT_BASE, height=280, title="ยอดขายแต่ละชั่วโมง")
             st.plotly_chart(fig, use_container_width=True)
 
     with col_r:
         st.markdown('<div class="section-title">🐾 Member vs Guest</div>', unsafe_allow_html=True)
-        mv  = hdr.groupby("MemberTypeName")["_NetBAmt"].sum().reset_index()
+        mv  = (hdr.groupby("MemberTypeName")["_NetBAmt"].sum().reset_index()
+               .sort_values("_NetBAmt", ascending=False))
+        # สีตามชื่อ tier (Black = ดำ, Silver = เงิน …) — เดิมไล่สีตามลำดับตัวอักษร ทำให้ tier เดิมได้สีไม่คงที่
+        TIER_COLOR = {"Guest": "#e3d7b8", "Black Hound": "#1f2328", "Silver Hound": "#9ca3af",
+                      "White Hound": "#cfd4dc", "Platinum Hound": "#78716c", "Senior Card": "#2563eb",
+                      "GH Wallet": GOLD, "Member (ไม่พบในทะเบียน)": "#d97706"}
         fig = go.Figure(go.Pie(
-            labels=mv["MemberTypeName"], values=mv["_NetBAmt"], hole=0.55,
-            marker=dict(colors=COLOR_SEQ, line=dict(color=DARK_BG, width=2)),
+            labels=mv["MemberTypeName"], values=mv["_NetBAmt"], hole=0.55, sort=False,
+            marker=dict(colors=[TIER_COLOR.get(n, "#a8a29e") for n in mv["MemberTypeName"]],
+                        line=dict(color=DARK_BG, width=2)),
             hovertemplate="%{label}<br>฿%{value:,.0f}<extra></extra>"
         ))
         fig.add_annotation(text=f"<b>฿{total_rev:,.0f}</b>", x=0.5, y=0.5,
-                           font=dict(size=13, color=GOLD), showarrow=False)
+                           font=dict(size=14, color=GOLD_TXT), showarrow=False)
         fig.update_layout(**LAYOUT_BASE, height=280,
                           legend_orientation="v", legend_x=1, legend_y=0.5)
         st.plotly_chart(fig, use_container_width=True)
@@ -843,9 +1087,9 @@ elif page == "🍽️ รายการขายดี" and data_ok:
         pills_html = "".join([
             f'<span style="display:inline-block;margin:3px 4px;padding:5px 14px;'
             f'border-radius:20px;font-size:12px;font-weight:{"700" if c == st.session_state["p2_cat"] else "400"};'
-            f'background:{"#d4af37" if c == st.session_state["p2_cat"] else "#21262d"};'
-            f'color:{"#0d1117" if c == st.session_state["p2_cat"] else "#c9d1d9"};'
-            f'border:1px solid {"#d4af37" if c == st.session_state["p2_cat"] else "#30363d"};'
+            f'background:{"#8a6a00" if c == st.session_state["p2_cat"] else "#f1ece2"};'
+            f'color:{"#faf8f4" if c == st.session_state["p2_cat"] else "#374151"};'
+            f'border:1px solid {"#8a6a00" if c == st.session_state["p2_cat"] else "#e6dfd1"};'
             f'white-space:nowrap;">{c}</span>'
             for c in cat_list
         ])
@@ -881,7 +1125,7 @@ elif page == "🍽️ รายการขายดี" and data_ok:
         filter_label = " › ".join(x for x in [st.session_state["p2_dept"],
                                                st.session_state["p2_cat"]] if x != "ทั้งหมด") or "ทั้งหมด"
         lbl_col.markdown(
-            f"<div style='padding-top:28px;font-size:12px;color:#d4af37;'>"
+            f"<div style='padding-top:28px;font-size:12px;color:#8a6a00;'>"
             f"🔍 {filter_label} · {len(sold_f):,} rows</div>",
             unsafe_allow_html=True
         )
@@ -901,8 +1145,8 @@ elif page == "🍽️ รายการขายดี" and data_ok:
             for i, (_, row) in enumerate(top_items.iterrows()):
                 rank_cls  = ["top1","top2","top3"][i] if i < 3 else ""
                 dep_name  = row.get("DepName",""); cat_name = row.get("CatName","")
-                dep_badge = f'<span style="background:#21262d;color:#8b949e;border-radius:8px;padding:1px 8px;font-size:10px;margin-right:4px;">{dep_name}</span>' if dep_name else ""
-                cat_badge = f'<span style="background:#1c2230;color:#58a6ff;border-radius:8px;padding:1px 8px;font-size:10px;">{cat_name}</span>' if cat_name else ""
+                dep_badge = f'<span style="background:#f1ece2;color:#6b7280;border-radius:8px;padding:1px 8px;font-size:10px;margin-right:4px;">{dep_name}</span>' if dep_name else ""
+                cat_badge = f'<span style="background:#f6f1e6;color:#2563eb;border-radius:8px;padding:1px 8px;font-size:10px;">{cat_name}</span>' if cat_name else ""
                 st.markdown(f"""
                 <div class="rank-row">
                     <div class="rank-num {rank_cls}">#{i+1}</div>
@@ -1000,7 +1244,7 @@ elif page == "🍽️ รายการขายดี" and data_ok:
             st.markdown('<div class="section-title">📊 Dept × Category Heatmap</div>', unsafe_allow_html=True)
             cross = (sold.groupby(["DepName","CatName"])["NetAmt"].sum()
                      .reset_index().pivot(index="DepName", columns="CatName", values="NetAmt").fillna(0))
-            fig = px.imshow(cross, color_continuous_scale=["#1c2230", GOLD],
+            fig = px.imshow(cross, color_continuous_scale=["#f6f1e6", GOLD],
                             aspect="auto", text_auto=",.0f", title="Revenue Heatmap")
             fig.update_layout(**LAYOUT_BASE, height=max(300, len(cross)*40))
             st.plotly_chart(fig, use_container_width=True)
@@ -1010,7 +1254,7 @@ elif page == "🍽️ รายการขายดี" and data_ok:
             path = ["DepName","CatName","ItemDes1"] if "CatName" in sold.columns else ["DepName","ItemDes1"]
             tree = sold.groupby(path)["NetAmt"].sum().reset_index()
             fig  = px.treemap(tree, path=path, values="NetAmt",
-                              color="NetAmt", color_continuous_scale=["#1c2230","#d4af37"],
+                              color="NetAmt", color_continuous_scale=["#f3ead0","#b8901f"],
                               title="Revenue Treemap")
             fig.update_layout(**LAYOUT_BASE, height=500)
             st.plotly_chart(fig, use_container_width=True)
@@ -1231,7 +1475,7 @@ elif page == "⏱️ วิเคราะห์ช่วงเวลา" and da
 
                     fig_hm = px.imshow(
                         pivot,
-                        color_continuous_scale=[[0,"#1a1a2e"], [0.3, GOLD], [1,"#c0392b"]],
+                        color_continuous_scale=[[0,"#faf6ec"], [0.3, GOLD], [1,"#b91c1c"]],
                         aspect="auto",
                         labels=dict(x="Hour", y="Item", color="Qty"),
                         title=f"Heatmap: Qty by Item × Hour (top {top_n} items ใน {slot_label_display})",
@@ -1243,7 +1487,7 @@ elif page == "⏱️ วิเคราะห์ช่วงเวลา" and da
                         line_width=1.5, line_color=GOLD,
                         annotation_text=slot_label_display,
                         annotation_position="top left",
-                        annotation_font_color=GOLD,
+                        annotation_font_color=GOLD_TXT,
                     )
                     fig_hm.update_layout(**LAYOUT_BASE, height=max(400, top_n * 26),
                                          coloraxis_showscale=True)
@@ -1406,25 +1650,25 @@ elif page == "👥 Member / Guest" and data_ok:
         low = spend.sort_values("_NetBAmt", ascending=True).head(10)
 
         BADGE_COLOR = {
-            "White Hound":    ("#c9d1d9","#9e9e9e"),
-            "Silver Hound":   ("#e5e4e2","#9e9e9e"),
-            "Black Hound":    ("#e6edf3","#21262d"),
-            "Platinum Hound": ("#e5e4e2","#555"),
-            "Senior Card":    ("#58a6ff","#1c3a5e"),
-            "GH Wallet":      ("#d4af37","#3d2200"),
+            "White Hound":    ("#374151","#f3f4f6"),
+            "Silver Hound":   ("#374151","#e5e7eb"),
+            "Black Hound":    ("#ffffff","#1f2328"),
+            "Platinum Hound": ("#44403c","#e7e5e4"),
+            "Senior Card":    ("#1d4ed8","#dbeafe"),
+            "GH Wallet":      ("#7a5c00","#fdf3d7"),
         }
 
         def render_spender_row(i, row, is_top=True):
             rank_cls = ["top1","top2","top3"][i] if i < 3 and is_top else ""
-            rank_color = {"top1":GOLD,"top2":SILVER,"top3":"#cd7f32"}.get(rank_cls,"#8b949e")
-            bc, bg = BADGE_COLOR.get(row["MemTNam1"], ("#d4af37","#3d2200"))
+            rank_color = {"top1":GOLD,"top2":"#6b7280","top3":"#b45309"}.get(rank_cls,"#9ca3af")
+            bc, bg = BADGE_COLOR.get(row["MemTNam1"], ("#7a5c00","#fdf3d7"))
             amt_color = GOLD if is_top else RED
             st.markdown(f"""
         <div class="rank-row">
             <div class="rank-num" style="color:{rank_color};">#{i+1}</div>
             <div style="flex:1;">
-                <div style="font-weight:600;color:#e6edf3;font-size:14px;">{row['FullName']}</div>
-                <div style="font-size:11px;color:#8b949e;margin-top:2px;">
+                <div style="font-weight:600;color:#1f2328;font-size:14px;">{row['FullName']}</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px;">
                     {row['MemberCode']} &nbsp;
                     <span style="background:{bg};color:{bc};border-radius:10px;
                           padding:1px 8px;font-size:10px;font-weight:600;">
@@ -1438,7 +1682,7 @@ elif page == "👥 Member / Guest" and data_ok:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown(f"<div style='font-size:13px;font-weight:700;color:{GOLD};margin-bottom:8px;'>🔥 Top Spenders</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px;font-weight:700;color:{GOLD_TXT};margin-bottom:8px;'>🔥 Top Spenders</div>", unsafe_allow_html=True)
             for i, (_, row) in enumerate(top.iterrows()):
                 render_spender_row(i, row, is_top=True)
 
@@ -1531,7 +1775,7 @@ elif page == "👥 Member / Guest" and data_ok:
                         fig = px.bar(
                             paired, x="PairRate", y="ItemDes1", orientation="h",
                             color="PairRate",
-                            color_continuous_scale=["#1c2230", GOLD],
+                            color_continuous_scale=["#e8d9a8", GOLD],
                             title=f"Items ที่มักสั่งคู่กับ '{sel_item}'"
                         )
                         fig.update_layout(**LAYOUT_BASE, height=420,
@@ -1713,7 +1957,7 @@ elif page == "🎁 วิเคราะห์โปรโมชั่น" and d
             y="DiscName",
             orientation="h",
             color="ROI",
-            color_continuous_scale=["#f85149","#d4af37","#3fb950"]
+            color_continuous_scale=["#dc2626","#8a6a00","#16a34a"]
         )
         fig_roi.update_layout(**LAYOUT_BASE, height=400)
         st.plotly_chart(fig_roi, use_container_width=True)
@@ -1732,7 +1976,7 @@ elif page == "🎁 วิเคราะห์โปรโมชั่น" and d
             y="DiscName",
             orientation="h",
             color="Profit",
-            color_continuous_scale=["#f85149","#d4af37","#3fb950"]
+            color_continuous_scale=["#dc2626","#8a6a00","#16a34a"]
         )
         fig_margin.update_layout(**LAYOUT_BASE, height=400)
         st.plotly_chart(fig_margin, use_container_width=True)
@@ -1745,11 +1989,11 @@ elif page == "🧑‍🏫 Menu Engineering":
 
     st.markdown('<div class="section-title" style="font-size:24px;">🧑‍🏫 Menu Engineering</div>', unsafe_allow_html=True)
     st.markdown("""
-    <div style='font-size:13px;color:#8b949e;margin-bottom:16px;'>
-        <span style='color:#19db6a;font-weight:700;'>⭐ Star</span> ขายดี+กำไรดี &nbsp;|&nbsp;
-        <span style='color:#f1c71e;font-weight:700;'>🧩 Puzzle</span> กำไรดี+ขายน้อย &nbsp;|&nbsp;
-        <span style='color:#f77606;font-weight:700;'>🐴 Plowhorse</span> ขายดี+กำไรต่ำ &nbsp;|&nbsp;
-        <span style='color:#eb3c28;font-weight:700;'>🐶 Dog</span> ขายน้อย+กำไรต่ำ
+    <div style='font-size:13px;color:#6b7280;margin-bottom:16px;'>
+        <span style='color:#16a34a;font-weight:700;'>⭐ Star</span> ขายดี+กำไรดี &nbsp;|&nbsp;
+        <span style='color:#ca8a04;font-weight:700;'>🧩 Puzzle</span> กำไรดี+ขายน้อย &nbsp;|&nbsp;
+        <span style='color:#ea580c;font-weight:700;'>🐴 Plowhorse</span> ขายดี+กำไรต่ำ &nbsp;|&nbsp;
+        <span style='color:#dc2626;font-weight:700;'>🐶 Dog</span> ขายน้อย+กำไรต่ำ
     </div>
     """, unsafe_allow_html=True)
 
@@ -1787,7 +2031,7 @@ elif page == "🧑‍🏫 Menu Engineering":
         if df_me.empty:
             st.warning("ไม่มีข้อมูลสำหรับช่วงนี้")
         else:
-            color_map = {"Stars":"#19db6a","Puzzles":"#f1c71e","Plow Horses":"#f77606","Dogs":"#eb3c28"}
+            color_map = {"Stars":"#16a34a","Puzzles":"#ca8a04","Plow Horses":"#ea580c","Dogs":"#dc2626"}
 
             c1,c2,c3,c4 = st.columns(4)
             cat_counts = df_me["menu_category"].value_counts()
@@ -1839,13 +2083,13 @@ elif page == "🧑‍🏫 Menu Engineering":
                     title=f"Menu Engineering Matrix — {period} วัน ({len(df_f)} รายการ)", opacity=0.82)
                 fig.update_xaxes(range=[0, x_max*1.05])
                 fig.update_yaxes(range=[0, y_max*1.05])
-                fig.add_vline(x=avg_cm, line_dash="dot", line_color="rgba(255,255,255,0.35)", line_width=1.5,
+                fig.add_vline(x=avg_cm, line_dash="dot", line_color="rgba(31,35,40,0.35)", line_width=1.5,
                     annotation_text=f"avg CM ฿{avg_cm:.0f}",
-                    annotation_font=dict(color="rgba(255,255,255,0.5)",size=11),
+                    annotation_font=dict(color="rgba(31,35,40,0.55)",size=11),
                     annotation_position="top right")
-                fig.add_hline(y=avg_qty, line_dash="dot", line_color="rgba(255,255,255,0.35)", line_width=1.5,
+                fig.add_hline(y=avg_qty, line_dash="dot", line_color="rgba(31,35,40,0.35)", line_width=1.5,
                     annotation_text=f"avg qty {avg_qty:.0f}",
-                    annotation_font=dict(color="rgba(255,255,255,0.5)",size=11),
+                    annotation_font=dict(color="rgba(31,35,40,0.55)",size=11),
                     annotation_position="top right")
                 for text, x, y in [
                     ("⭐ Stars",       x_max*0.75, y_max*0.90),
@@ -1854,11 +2098,11 @@ elif page == "🧑‍🏫 Menu Engineering":
                     ("🐶 Dogs",        x_max*0.10, y_max*0.12),
                 ]:
                     fig.add_annotation(x=x, y=y, text=text, showarrow=False,
-                        font=dict(size=13,color="rgba(255,255,255,0.25)"), bgcolor="rgba(0,0,0,0)")
+                        font=dict(size=13,color="rgba(31,35,40,0.22)"), bgcolor="rgba(0,0,0,0)")
                 fig.update_layout(**LAYOUT_BASE, height=560,
                     xaxis_title="Avg CM / Unit (฿)", yaxis_title="Total Qty Sold")
                 fig.update_layout(legend=dict(title="Category",orientation="v",x=1.01,y=1,
-                    bgcolor="rgba(22,27,34,0.9)",bordercolor="#30363d",borderwidth=1,font=dict(size=12)))
+                    bgcolor="rgba(255,255,255,0.92)",bordercolor="#e6dfd1",borderwidth=1,font=dict(size=12)))
                 st.plotly_chart(fig, use_container_width=True)
 
                 # ── Top/Bottom per Quadrant ──
@@ -1881,10 +2125,10 @@ elif page == "🧑‍🏫 Menu Engineering":
                 }
 
                 quadrants = [
-                    ("⭐ Stars",       "Stars",       "#19db6a"),
-                    ("🧩 Puzzles",     "Puzzles",     "#f1c71e"),
-                    ("🐴 Plow Horses", "Plow Horses", "#f77606"),
-                    ("🐶 Dogs",        "Dogs",        "#eb3c28"),
+                    ("⭐ Stars",       "Stars",       "#16a34a"),
+                    ("🧩 Puzzles",     "Puzzles",     "#ca8a04"),
+                    ("🐴 Plow Horses", "Plow Horses", "#ea580c"),
+                    ("🐶 Dogs",        "Dogs",        "#dc2626"),
                 ]
                 for q_label, q_key, q_color in quadrants:
                     q_df = df_f[df_f["menu_category"]==q_key][disp_cols].copy()
@@ -1905,7 +2149,7 @@ elif page == "🧑‍🏫 Menu Engineering":
                                 use_container_width=True, height=280
                             )
                         with c_bot:
-                            st.markdown(f"<div style='font-size:12px;font-weight:700;color:#8b949e;margin-bottom:6px;'>🔻 Bottom {top_n_filter} by CM Profit</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;'>🔻 Bottom {top_n_filter} by CM Profit</div>", unsafe_allow_html=True)
                             st.dataframe(
                                 q_df.sort_values("total_profit", ascending=True)
                                     .head(int(top_n_filter))
@@ -1992,7 +2236,7 @@ elif page == "🧑‍🏫 Menu Engineering":
                                 fig_f.add_trace(go.Scatter(
                                     x=pd.concat([forecast["ds"], forecast["ds"][::-1]]),
                                     y=pd.concat([forecast["yhat_upper"], forecast["yhat_lower"][::-1]]),
-                                    fill="toself", fillcolor="rgba(88,166,255,0.1)",
+                                    fill="toself", fillcolor="rgba(37,99,235,0.1)",
                                     line=dict(color="rgba(0,0,0,0)"), name="Confidence"))
                                 fig_f.add_vline(x=str(df_daily["ds"].max()),
                                     line_dash="dash", line_color=GOLD, line_width=1)
@@ -2048,11 +2292,11 @@ elif page == "🧑‍🏫 Menu Engineering":
                                     ant = ", ".join(list(r["antecedents"]))
                                     con = ", ".join(list(r["consequents"]))
                                     st.markdown(f"""<div class="card card-gold" style="margin:6px 0;padding:14px 18px;">
-                                        <div style="font-size:13px;color:#e6edf3;">
-                                            <span style="color:{GOLD};font-weight:700;">#{i+1}</span> &nbsp;
-                                            <b>{ant}</b><span style="color:#8b949e;"> → </span><b style="color:{BLUE};">{con}</b>
+                                        <div style="font-size:13px;color:#1f2328;">
+                                            <span style="color:{GOLD_TXT};font-weight:700;">#{i+1}</span> &nbsp;
+                                            <b>{ant}</b><span style="color:#6b7280;"> → </span><b style="color:{BLUE};">{con}</b>
                                         </div>
-                                        <div style="font-size:11px;color:#8b949e;margin-top:4px;">
+                                        <div style="font-size:11px;color:#6b7280;margin-top:4px;">
                                             Support {r['support']:.1%} | Confidence {r['confidence']:.1%} | Lift <span style="color:{GREEN};">{r['lift']:.2f}x</span>
                                         </div></div>""", unsafe_allow_html=True)
                                 st.dataframe(rules[["antecedents","consequents","support","confidence","lift"]].head(50).reset_index(drop=True), use_container_width=True)
@@ -2063,7 +2307,7 @@ elif page == "🧑‍🏫 Menu Engineering":
             # ── TAB 4: AI ANALYSIS ──────────────────────────────────
             with tab_me4:
                 st.markdown('<div class="section-title">🤖 AI Strategic Analysis (Groq)</div>', unsafe_allow_html=True)
-                st.markdown('<div style="font-size:12px;color:#8b949e;margin-bottom:12px;">สมัครฟรีที่ <a href="https://console.groq.com" target="_blank" style="color:#58a6ff;">console.groq.com</a> → API Keys → Create API Key</div>', unsafe_allow_html=True)
+                st.markdown('<div style="font-size:12px;color:#6b7280;margin-bottom:12px;">สมัครฟรีที่ <a href="https://console.groq.com" target="_blank" style="color:#2563eb;">console.groq.com</a> → API Keys → Create API Key</div>', unsafe_allow_html=True)
                 api_key = st.text_input("Groq API Key", type="password", placeholder="gsk_...", key="groq_key")
                 model   = st.selectbox("Model", [
                     "llama-3.3-70b-versatile",
@@ -2141,7 +2385,7 @@ elif page == "🧑‍🏫 Menu Engineering":
 # ═══════════════════════════════════════════════════════════════
 elif page == "🥩 Ingredient Forecast" and data_ok:
     st.markdown('<div class="section-title" style="font-size:24px;">🥩 Ingredient Forecast</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-size:12px;color:#8b949e;margin-bottom:16px;">คาดการณ์วัตถุดิบที่ต้องใช้จากยอดขาย × Recipe</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:12px;color:#6b7280;margin-bottom:16px;">คาดการณ์วัตถุดิบที่ต้องใช้จากยอดขาย × Recipe</div>', unsafe_allow_html=True)
 
     # ── Load recipe & ingredient from MySQL ──
     @st.cache_data(ttl=300, show_spinner=False)
@@ -2184,7 +2428,7 @@ elif page == "🥩 Ingredient Forecast" and data_ok:
                                on_change=None)
     show_alert_only = c3.checkbox("⚠️ แสดงเฉพาะที่ต้องสั่ง", key="ing_alert_only")
 
-    st.markdown("<hr style='border-color:#30363d;margin:8px 0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
 
     if st.button("🔮 คำนวณ Ingredient Forecast", use_container_width=True, key="run_ing_forecast"):
 
@@ -2261,31 +2505,31 @@ elif page == "🥩 Ingredient Forecast" and data_ok:
         c3.metric("🟢 พอ",         int((df_result["status"]=="🟢 พอ").sum()))
         c4.metric("💰 ต้นทุนสั่งซื้อ", f"฿{df_result['est_cost'].sum():,.0f}")
 
-        st.markdown(f'<div style="font-size:12px;color:#8b949e;margin:8px 0;">คาดการณ์ {horizon_used} วัน จาก avg 30 วันล้าสุด</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:12px;color:#6b7280;margin:8px 0;">คาดการณ์ {horizon_used} วัน จาก avg 30 วันล้าสุด</div>', unsafe_allow_html=True)
 
         # Color rows
         for _, row in df_result.iterrows():
-            status_color = {"🔴 สั่งด่วน":"#f85149","🟡 ใกล้หมด":"#d29922","🟢 พอ":"#3fb950"}.get(row["status"],"#8b949e")
+            status_color = {"🔴 สั่งด่วน":"#dc2626","🟡 ใกล้หมด":"#d97706","🟢 พอ":"#16a34a"}.get(row["status"],"#6b7280")
             st.markdown(f"""
             <div style="display:flex;align-items:center;padding:10px 16px;margin:4px 0;
-                        background:#161b22;border:1px solid #30363d;border-left:4px solid {status_color};
+                        background:#ffffff;border:1px solid #e6dfd1;border-left:4px solid {status_color};
                         border-radius:8px;gap:12px;">
-                <div style="flex:3;color:#e6edf3;font-size:13px;">
+                <div style="flex:3;color:#1f2328;font-size:13px;">
                     <div style="font-weight:600;">{row['ing_name']}</div>
-                    <div style="font-size:11px;color:#8b949e;margin-top:2px;">{row['ing_code']}</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:2px;">{row['ing_code']}</div>
                 </div>
-                <div style="flex:1;font-size:12px;color:#8b949e;text-align:center;">{row['use_unit']}</div>
-                <div style="flex:1;text-align:right;font-size:12px;color:#8b949e;">
-                    ต้องใช้<br><b style="color:#e6edf3;">{row['demand']:.1f}</b>
+                <div style="flex:1;font-size:12px;color:#6b7280;text-align:center;">{row['use_unit']}</div>
+                <div style="flex:1;text-align:right;font-size:12px;color:#6b7280;">
+                    ต้องใช้<br><b style="color:#1f2328;">{row['demand']:.1f}</b>
                 </div>
-                <div style="flex:1;text-align:right;font-size:12px;color:#8b949e;">
-                    stock<br><b style="color:#58a6ff;">{row['current_stock']:.1f}</b>
+                <div style="flex:1;text-align:right;font-size:12px;color:#6b7280;">
+                    stock<br><b style="color:#2563eb;">{row['current_stock']:.1f}</b>
                 </div>
-                <div style="flex:1;text-align:right;font-size:12px;color:#8b949e;">
+                <div style="flex:1;text-align:right;font-size:12px;color:#6b7280;">
                     ต้องสั่ง<br><b style="color:{status_color};">{row['need_to_order']:.1f}</b>
                 </div>
-                <div style="flex:1;text-align:right;font-size:12px;color:#8b949e;">
-                    ต้นทุน<br><b style="color:#d4af37;">฿{row['est_cost']:,.0f}</b>
+                <div style="flex:1;text-align:right;font-size:12px;color:#6b7280;">
+                    ต้นทุน<br><b style="color:#8a6a00;">฿{row['est_cost']:,.0f}</b>
                 </div>
                 <div style="flex:1;text-align:center;font-size:12px;">{row['status']}</div>
             </div>""", unsafe_allow_html=True)
