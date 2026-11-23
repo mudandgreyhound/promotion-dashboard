@@ -53,7 +53,8 @@ def main():
             n = cur.execute(f"UPDATE {T} SET active=%s WHERE username=%s", (1 if cmd == "enable" else 0, args[0]))
             print(cmd, "ok" if n else "ไม่พบ username", args[0])
         elif cmd == "unlock" and args:
-            n = cur.execute(f"UPDATE {T} SET failed_count=0, locked_until=NULL WHERE username=%s", (args[0],))
+            dash_auth._ensure_lock_count(cur)
+            n = cur.execute(f"UPDATE {T} SET failed_count=0, locked_until=NULL, lock_count=0 WHERE username=%s", (args[0],))
             print("unlocked" if n else "ไม่พบ username", args[0])
         else:
             sys.exit(__doc__)

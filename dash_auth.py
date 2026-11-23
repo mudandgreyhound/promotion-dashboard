@@ -16,7 +16,8 @@ import gh_env
 
 TABLE = "promo_dash_users"
 MAX_FAILED = 5
-LOCK_MINUTES = 5
+LOCK_MINUTES = 5          # ล็อกครั้งแรก — ล็อกซ้ำติดกันเพิ่มเท่าตัว (5→10→20…) สูงสุด LOCK_MAX_MINUTES
+LOCK_MAX_MINUTES = 24 * 60  # เปิดออกเน็ตผ่าน Cloudflare + รหัส 4 หลัก → กันเดารหัสไล่ทุกตัว (reset เมื่อ login สำเร็จ)
 SESSION_HOURS = 12
 COOKIE = "gh_dash_session"
 
@@ -26,6 +27,7 @@ DDL = f"""CREATE TABLE IF NOT EXISTS {TABLE} (
     full_name     VARCHAR(100) NULL,
     active        TINYINT(1)   NOT NULL DEFAULT 1,
     failed_count  INT          NOT NULL DEFAULT 0,
+    lock_count    INT          NOT NULL DEFAULT 0,
     locked_until  DATETIME     NULL,
     last_login    DATETIME     NULL,
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -60,13 +62,14 @@ def check_login(username, pw):
         return False, "กรอก Username และ Password", None
     with _conn() as c, c.cursor() as cur:
         cur.execute(DDL)
-        cur.execute(f"SELECT password_hash, full_name, active, failed_count, locked_until FROM {TABLE} "
+        _ensure_lock_count(cur)
+        cur.execute(f"SELECT password_hash, full_name, active, failed_count, locked_until, lock_count FROM {TABLE} "
                     f"WHERE username=%s", (username,))
         row = cur.fetchone()
         now = dt.datetime.now()
         if not row:
             return False, "Username หรือ Password ไม่ถูกต้อง", None
-        pw_hash, full_name, active, failed, locked_until = row
+        pw_hash, full_name, active, failed, locked_until, lock_count = row
         if not active:
             return False, "บัญชีนี้ถูกปิดใช้งาน", None
         if locked_until and locked_until > now:
@@ -74,15 +77,25 @@ def check_login(username, pw):
             return False, f"ใส่รหัสผิดหลายครั้ง — ลองใหม่ในอีก {mins} นาที", None
         if not verify_pw(pw, pw_hash):
             failed = (failed or 0) + 1
-            lock = now + dt.timedelta(minutes=LOCK_MINUTES) if failed >= MAX_FAILED else None
-            cur.execute(f"UPDATE {TABLE} SET failed_count=%s, locked_until=%s WHERE username=%s",
-                        (0 if lock else failed, lock, username))
-            if lock:
-                return False, f"ใส่รหัสผิด {MAX_FAILED} ครั้ง — ล็อก {LOCK_MINUTES} นาที", None
+            if failed >= MAX_FAILED:
+                lock_count = (lock_count or 0) + 1
+                mins = min(LOCK_MINUTES * 2 ** (lock_count - 1), LOCK_MAX_MINUTES)
+                cur.execute(f"UPDATE {TABLE} SET failed_count=0, locked_until=%s, lock_count=%s WHERE username=%s",
+                            (now + dt.timedelta(minutes=mins), lock_count, username))
+                return False, f"ใส่รหัสผิด {MAX_FAILED} ครั้ง — ล็อก {mins} นาที", None
+            cur.execute(f"UPDATE {TABLE} SET failed_count=%s WHERE username=%s", (failed, username))
             return False, "Username หรือ Password ไม่ถูกต้อง", None
-        cur.execute(f"UPDATE {TABLE} SET failed_count=0, locked_until=NULL, last_login=%s WHERE username=%s",
+        cur.execute(f"UPDATE {TABLE} SET failed_count=0, locked_until=NULL, lock_count=0, last_login=%s WHERE username=%s",
                     (now, username))
         return True, "", full_name or username
+
+
+def _ensure_lock_count(cur):
+    """เพิ่มคอลัมน์ lock_count ให้ตารางที่สร้างก่อนมีคอลัมน์นี้ (MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS)"""
+    cur.execute("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME=%s AND COLUMN_NAME='lock_count'", (TABLE,))
+    if not cur.fetchone()[0]:
+        cur.execute(f"ALTER TABLE {TABLE} ADD COLUMN lock_count INT NOT NULL DEFAULT 0 AFTER failed_count")
 
 
 def user_active(username):

@@ -8,3 +8,6 @@
 15 12 * * *  /usr/bin/flock -w 120 /tmp/gh_sale_monitor_yday.lock bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py yesterday'
 50 23 * * *  /usr/bin/flock -w 120 /tmp/gh_sale_monitor_yday.lock bash -c 'cd /opt/promotion_dashboard && venv/bin/python etl/sale_monitor_etl.py yesterday'
 30 3 * * * /usr/bin/flock -n /tmp/etl_menu_eng.lock bash -c 'cd /opt/promotion_dashboard/etl && ../venv/bin/python3 etl_sync.py --menu-engineering --me-days 30 60 90' >> /opt/promotion_dashboard/etl/gh_etl_menu_eng.log 2>&1
+# Greyhound Dashboard: Cloudflare tunnel greyhound-dashboard.mobile1234.site → Streamlit 83 (เพิ่ม 2026-11-23)
+@reboot      /opt/promotion_dashboard/deploy/run_tunnel.sh
+*/5 * * * *  /opt/promotion_dashboard/deploy/run_tunnel.sh
