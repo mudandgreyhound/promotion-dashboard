@@ -994,17 +994,8 @@ if page not in ("⚙️ Admin", "📡 Sale Monitor", "🔁 ความถี่
             st.error(f"❌ เชื่อมต่อ MySQL ไม่ได้: {e}")
 
 # ─────────────────────────────────────────────
-# หัวแบรนด์ GREYHOUND CAFÉ บนสุดทุกหน้า (ผู้ใช้ขอ 2026-11-23) — บรรทัดรองบอกหน้า + ช่วงข้อมูลที่แสดงจริง
+# (เอาหัวแบรนด์ GREYHOUND CAFÉ บนสุดทุกหน้าออกแล้ว — ผู้ใช้บอกเกะกะ 2026-11-24 · โค้ดเดิมใน app_main.py.bak_20261124_prehdr)
 # ─────────────────────────────────────────────
-_HDR_SUB = {
-    "📡 Sale Monitor":       f"📡 Sale Monitor · เรียลไทม์ วันนี้ {datetime.now():%d/%m/%Y}",
-    "🔁 ความถี่ลูกค้า":       "🔁 ความถี่ลูกค้า · ข้อมูล member ถึงเมื่อวาน (เลือกช่วงในหน้า)",
-    "🧑‍🏫 Menu Engineering": "🧑‍🏫 Menu Engineering · ตามช่วงที่เลือกในหน้า",
-    "🥩 Ingredient Forecast": "🥩 Ingredient Forecast · คาดการณ์จากยอดขาย 30 วันล่าสุด",
-    "⚙️ Admin":              "⚙️ ETL Admin",
-}.get(page, f"{page} · {d_from:%d/%m/%Y} – {d_to:%d/%m/%Y}")
-st.markdown(f'<div class="dash-header"><h1>🐾 GREYHOUND CAFÉ</h1><p>Promotion Intelligence · {_HDR_SUB}</p></div>',
-            unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE 0: SALE MONITOR (เรียลไทม์ วันนี้ vs เมื่อวาน) — แบบเดียวกับ Dunkin
