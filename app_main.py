@@ -303,6 +303,16 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"], .stApp, button, input, textarea, select { font-family: 'Inter', 'Noto Sans Thai', sans-serif; }
 .stApp { background: #faf8f4; color: #1f2328; }
+/* ตัดพื้นที่ว่างด้านบน (ผู้ใช้ขอ 2026-11-24): แถบ header ขาวสูง ~60px → โปร่งใส สูง 0 (ปุ่ม ⋮ ยังลอยมุมขวา)
+   + padding บนของเนื้อหา (ค่าเริ่ม 6rem) → 1.2rem · ซ่อนปุ่ม Deploy */
+header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
+[data-testid="stMainBlockContainer"], .block-container { padding-top: 1.2rem !important; }
+[data-testid="stAppDeployButton"] { display: none !important; }
+/* element ที่ไม่มีอะไรให้เห็น (บล็อก CSS, placeholder ว่าง, ตัวตั้ง cookie login) ยังกิน gap 16px ต่ออัน → ซ่อน
+   (<style> ยังมีผลแม้กล่องถูกซ่อน) */
+[data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] [data-testid="stMarkdownContainer"] > style:only-child),
+[data-testid="stElementContainer"]:has(> [data-testid="stEmpty"]:empty),
+[data-testid="stElementContainer"][class*="st-key-_gh_cookie"] { display: none !important; }
 .stApp h1, .stApp h2, .stApp h3, .stApp h4 { color: #1f2328; }
 .stMarkdown p, .stMarkdown li { font-size: 15px; line-height: 1.6; }
 
