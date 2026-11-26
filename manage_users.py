@@ -8,10 +8,17 @@ manage_users.py — จัดการบัญชี login ของหน้�
   python manage_users.py enable <username>
   python manage_users.py unlock <username>               # ปลดล็อกที่ใส่รหัสผิดเกิน 5 ครั้ง
 
+สิทธิ์ดูเมนู (dash_access.py — ทำในหน้า Admin › สิทธิ์ผู้ใช้ ก็ได้):
+  python manage_users.py role <username> admin|user     # admin = เห็นทุกหน้า + หน้า Admin
+  python manage_users.py pages                          # รายการรหัสหน้า
+  python manage_users.py pages <username> overview,sale_monitor | all | none
+
+user ใหม่ = role user + ไม่มีหน้า → ไม่เห็นเมนูใดจนกว่าจะให้สิทธิ์
 รหัสผ่านไม่ถูกเก็บเป็นข้อความ (pbkdf2) และไม่ควรใส่เป็น argument (จะค้างใน shell history)
 """
 import sys, getpass
 import dash_auth
+import dash_access
 
 
 def _read_pw():
@@ -30,11 +37,32 @@ def main():
     cmd, args = sys.argv[1], sys.argv[2:]
     with dash_auth._conn() as c, c.cursor() as cur:
         cur.execute(dash_auth.DDL)
+        dash_access.ensure_columns(cur)
         T = dash_auth.TABLE
         if cmd == "list":
-            cur.execute(f"SELECT username, full_name, active, failed_count, locked_until, last_login FROM {T} ORDER BY username")
+            cur.execute(f"SELECT username, full_name, active, role, allowed_pages, failed_count, locked_until, last_login "
+                        f"FROM {T} ORDER BY username")
             for r in cur.fetchall():
                 print(r)
+        elif cmd == "role" and len(args) == 2 and args[1] in dash_access.ROLES:
+            if args[1] == "user":
+                cur.execute(f"SELECT COUNT(*) FROM {T} WHERE role='admin' AND active=1 AND username<>%s", (args[0],))
+                if not cur.fetchone()[0]:
+                    sys.exit("ต้องเหลือ admin ที่เปิดใช้งานอย่างน้อย 1 คน")
+            n = cur.execute(f"UPDATE {T} SET role=%s WHERE username=%s", (args[1], args[0]))
+            print(f"role={args[1]}" if n else "ไม่พบ username (หรือค่าเดิมอยู่แล้ว)", args[0])
+        elif cmd == "pages" and not args:
+            for k, lbl in dash_access.PAGES:
+                print(f"  {k:15} {lbl}")
+        elif cmd == "pages" and len(args) == 2:
+            spec = args[1].strip().lower()
+            keys = dash_access.PAGE_KEYS if spec == "all" else [] if spec == "none" else spec.split(",")
+            bad = [k for k in keys if k and k not in dash_access.LABEL]
+            if bad:
+                sys.exit(f"ไม่รู้จักรหัสหน้า: {', '.join(bad)} — ดูรายการด้วย: python manage_users.py pages")
+            val = dash_access.join_pages(keys)
+            n = cur.execute(f"UPDATE {T} SET allowed_pages=%s WHERE username=%s", (val, args[0]))
+            print(f"pages={val or '(ไม่มี)'}" if n else "ไม่พบ username (หรือค่าเดิมอยู่แล้ว)", args[0])
         elif cmd == "add" and args:
             pw = _read_pw()
             if len(pw) < 4:

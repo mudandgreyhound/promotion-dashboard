@@ -385,6 +385,17 @@ section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p { col
 import dash_auth
 AUTH_USER, AUTH_NAME = dash_auth.require_login(st)
 
+# สิทธิ์ดูเมนูราย user (dash_access.py) — อ่านใหม่ทุก rerun: admin เปลี่ยนสิทธิ์แล้วมีผลทันที
+# module ที่ import ถูก cache ทั้ง process (ไม่มี file watcher — ดู app.py) → reload เองเมื่อไฟล์ถูกแก้
+import importlib as _importlib
+import dash_access
+_da_mtime = _os.path.getmtime(dash_access.__file__)
+if getattr(dash_access, "_loaded_mtime", None) != _da_mtime:
+    dash_access = _importlib.reload(dash_access)
+    dash_access._loaded_mtime = _da_mtime
+AUTH_ROLE, AUTH_PAGES = dash_access.get_access(AUTH_USER)
+NAV_PAGES = dash_access.nav_labels(AUTH_ROLE, AUTH_PAGES)
+
 
 # ─────────────────────────────────────────────
 # COLORS
@@ -928,19 +939,13 @@ with st.sidebar:
     # ── Navigation ──
     st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>NAVIGATION</div>", unsafe_allow_html=True)
-    page = st.radio("หน้า", [
-        "📡 Sale Monitor",
-        "🏠 Overview",
-        "🍽️ รายการขายดี",
-        "⏱️ วิเคราะห์ช่วงเวลา",
-        "👥 Member / Guest",
-        "🔁 ความถี่ลูกค้า",
-        "🧾 Per Bill Analysis",
-        "🎁 วิเคราะห์โปรโมชั่น",
-        "🧑‍🏫 Menu Engineering",
-        "🥩 Ingredient Forecast",
-        "⚙️ Admin",
-    ], label_visibility="collapsed")
+    # รายการหน้า + ลำดับอยู่ใน dash_access.PAGES — แสดงเฉพาะหน้าที่ user มีสิทธิ์ (Admin = role admin เท่านั้น)
+    # ไม่มี URL แยกต่อหน้า → หน้าที่ไม่อยู่ในรายการนี้เข้าไม่ได้จริง ไม่ใช่แค่ซ่อน
+    if NAV_PAGES:
+        page = st.radio("หน้า", NAV_PAGES, label_visibility="collapsed")
+    else:
+        page = None
+        st.markdown("<div style='font-size:13px;color:#9ca3af'>🔒 ยังไม่ได้รับสิทธิ์ดูเมนู</div>", unsafe_allow_html=True)
 
     if page == "📡 Sale Monitor":
         st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
@@ -954,6 +959,10 @@ with st.sidebar:
     if st.button("ออกจากระบบ", key="logout_btn", use_container_width=True):
         dash_auth.logout(st)
         st.rerun()
+
+if page is None:
+    st.info("🔒 บัญชีนี้ยังไม่ได้รับสิทธิ์ดูเมนูใด — ติดต่อผู้ดูแลระบบให้เปิดสิทธิ์")
+    st.stop()
 
 
 # ─────────────────────────────────────────────
@@ -3043,8 +3052,125 @@ elif page == "🥩 Ingredient Forecast" and data_ok:
         st.info("กด **คำนวณ Ingredient Forecast** เพื่อดูผล")
 
 
-# PAGE 9: ADMIN  →  ETL Admin App (embedded)
+# PAGE 9: ADMIN  →  สิทธิ์ผู้ใช้ + ETL Admin App (embedded) — role admin เท่านั้น
 # ═══════════════════════════════════════════════════════════════
-elif page == "⚙️ Admin":
-    st.markdown('<div class="section-title" style="font-size:20px;">⚙️ ETL Admin Panel</div>', unsafe_allow_html=True)
-    st.components.v1.iframe(ETL_ADMIN_URL, height=900, scrolling=True)
+elif page == dash_access.ADMIN_PAGE and AUTH_ROLE == "admin":
+    st.markdown('<div class="section-title" style="font-size:20px;">⚙️ Admin</div>', unsafe_allow_html=True)
+    tab_acc, tab_usr, tab_etl = st.tabs(["🔐 สิทธิ์ผู้ใช้", "👤 เพิ่ม/จัดการผู้ใช้", "🛠️ ETL Admin Panel"])
+
+    with tab_acc:
+        st.caption("ติ๊กหน้าที่แต่ละคนเห็นได้ แล้วกด **บันทึกสิทธิ์** — มีผลทันทีที่หน้าของ user นั้น refresh "
+                   "(ไม่ต้อง login ใหม่) · **Admin** = เห็นทุกหน้า + หน้านี้ · user ใหม่จะยังไม่เห็นเมนูใดจนกว่าจะติ๊กให้ · "
+                   "เพิ่ม user / เปลี่ยนรหัส / ปิดบัญชี: แท็บ **👤 เพิ่ม/จัดการผู้ใช้**")
+        try:
+            _acc_rows = dash_access.list_access()
+        except Exception as e:
+            _acc_rows = None
+            st.error(f"❌ อ่านรายชื่อผู้ใช้ไม่ได้: {e}")
+        if _acc_rows is not None:
+            _acc_df = pd.DataFrame([{
+                "username": r["username"],
+                "full_name": r["full_name"] or "",
+                "สถานะ": "ใช้งาน" if r["active"] else "ปิด",
+                "admin": r["role"] == "admin",
+                **{k: (k in r["pages"]) for k in dash_access.PAGE_KEYS},
+            } for r in _acc_rows])
+            _acc_cfg = {
+                "username": st.column_config.TextColumn("Username"),
+                "full_name": st.column_config.TextColumn("ชื่อ"),
+                "สถานะ": st.column_config.TextColumn("สถานะ", width="small"),
+                "admin": st.column_config.CheckboxColumn("⭐ Admin", help="เห็นทุกหน้า + หน้า Admin (ไม่ต้องติ๊กรายหน้า)"),
+                **{k: st.column_config.CheckboxColumn(lbl) for k, lbl in dash_access.PAGES},
+            }
+            # key เปลี่ยนหลังบันทึก → editor โหลดค่าจาก DB ใหม่ ไม่เอา edit เก่ามาทับ
+            _acc_ver = st.session_state.setdefault("acc_editor_ver", 0)
+            _acc_edit = st.data_editor(_acc_df, column_config=_acc_cfg, hide_index=True, num_rows="fixed",
+                                       disabled=["username", "full_name", "สถานะ"],
+                                       width="stretch", key=f"acc_editor_{_acc_ver}")
+            if st.button("💾 บันทึกสิทธิ์", type="primary", key="acc_save"):
+                _ok, _msg = dash_access.save_access([{
+                    "username": r["username"],
+                    "role": "admin" if r["admin"] else "user",
+                    "pages": [k for k in dash_access.PAGE_KEYS if r[k]],
+                } for r in _acc_edit.to_dict("records")], by=AUTH_USER)
+                if _ok:
+                    st.session_state["acc_editor_ver"] = _acc_ver + 1
+                    st.session_state["acc_flash"] = _msg
+                    st.rerun()
+                st.error(_msg)
+            if st.session_state.get("acc_flash"):
+                st.success(st.session_state.pop("acc_flash"))
+
+    with tab_usr:
+        # version ของฟอร์ม: สำเร็จแล้วเปลี่ยน key → ฟอร์มว่างใหม่ (ผิดพลาด = ค่าที่กรอกยังอยู่ ไม่ต้องพิมพ์ซ้ำ)
+        _usr_ver = st.session_state.setdefault("usr_form_ver", 0)
+
+        def _usr_done(msg):
+            st.session_state["usr_form_ver"] = _usr_ver + 1
+            st.session_state["acc_editor_ver"] = st.session_state.get("acc_editor_ver", 0) + 1   # ตารางสิทธิ์โหลดใหม่
+            st.session_state["usr_flash"] = msg
+            st.rerun()
+
+        if st.session_state.get("usr_flash"):
+            st.success(st.session_state.pop("usr_flash"))
+
+        st.markdown("##### ➕ เพิ่มผู้ใช้ใหม่")
+        with st.form(f"usr_add_{_usr_ver}"):
+            _c1, _c2 = st.columns(2)
+            _nu = _c1.text_input("Username", help="a-z A-Z 0-9 . _ - ยาว 3–50 ตัว เช่น รหัสพนักงาน")
+            _nn = _c2.text_input("ชื่อ-นามสกุล")
+            _p1 = _c1.text_input("Password", type="password", help=f"อย่างน้อย {dash_access.MIN_PW} ตัว")
+            _p2 = _c2.text_input("ยืนยัน Password", type="password")
+            _nadm = st.checkbox("⭐ Admin — เห็นทุกหน้า + หน้า Admin")
+            _npg = st.multiselect("หน้าที่เห็นได้ (ไม่เลือก = ยังไม่เห็นเมนูใด · ติ๊กเพิ่มภายหลังได้ที่แท็บสิทธิ์ผู้ใช้)",
+                                  dash_access.PAGE_KEYS, format_func=lambda k: dash_access.LABEL[k])
+            _add = st.form_submit_button("➕ เพิ่มผู้ใช้", type="primary")
+        if _add:
+            _ok, _msg = dash_access.create_user(_nu, _nn, _p1, _p2, "admin" if _nadm else "user", _npg)
+            if _ok:
+                _usr_done(_msg)
+            st.error(_msg)
+
+        st.divider()
+        st.markdown("##### 🔑 ตั้งรหัสผ่านใหม่ / เปิด-ปิดบัญชี")
+        try:
+            _usr_by = {r["username"]: r for r in dash_access.list_access()}
+        except Exception as e:
+            _usr_by = {}
+            st.error(f"❌ อ่านรายชื่อผู้ใช้ไม่ได้: {e}")
+        if _usr_by:
+            _now = datetime.now()
+
+            def _usr_label(u):
+                r = _usr_by[u]
+                tags = ["⭐ admin" if r["role"] == "admin" else "user"]
+                if not r["active"]:
+                    tags.append("⛔ ปิดอยู่")
+                if r["locked_until"] and r["locked_until"] > _now:
+                    tags.append("🔒 ล็อก (ใส่รหัสผิด)")
+                return f'{u} — {r["full_name"] or "-"} ({", ".join(tags)})'
+
+            _sel = st.selectbox("เลือกผู้ใช้", list(_usr_by), format_func=_usr_label, key="usr_sel")
+            with st.form(f"usr_pw_{_usr_ver}"):
+                _c1, _c2 = st.columns(2)
+                _q1 = _c1.text_input("รหัสผ่านใหม่", type="password")
+                _q2 = _c2.text_input("ยืนยันรหัสผ่านใหม่", type="password")
+                _pw = st.form_submit_button("🔑 ตั้งรหัสผ่านใหม่ (ปลดล็อกด้วย)")
+            if _pw:
+                _ok, _msg = dash_access.reset_password(_sel, _q1, _q2)
+                if _ok:
+                    _usr_done(_msg)
+                st.error(_msg)
+            if _usr_by[_sel]["active"]:
+                _tog = st.button(f"⛔ ปิดบัญชี {_sel}", key="usr_disable", disabled=(_sel == AUTH_USER),
+                                 help="ปิดบัญชีตัวเองไม่ได้" if _sel == AUTH_USER else "login ไม่ได้ + session ที่เปิดอยู่จะไม่เห็นเมนู")
+            else:
+                _tog = st.button(f"✅ เปิดบัญชี {_sel}", key="usr_enable")
+            if _tog:
+                _ok, _msg = dash_access.set_active(_sel, not _usr_by[_sel]["active"], AUTH_USER)
+                if _ok:
+                    _usr_done(_msg)
+                st.error(_msg)
+
+    with tab_etl:
+        st.components.v1.iframe(ETL_ADMIN_URL, height=900, scrolling=True)
