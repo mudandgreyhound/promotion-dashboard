@@ -318,6 +318,27 @@ header[data-testid="stHeader"] { background: transparent !important; height: 0 !
 
 section[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid #e6dfd1; color: #1f2328; }
 section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p { color: #374151; }
+/* ── Sidebar แบบเดียวกับ ABP / Dunkin web (2026-11-27): โลโก้ → เมนู "หน้า" แบบแถบ → ตัวกรอง → ท้ายเมนู ── */
+.gh-sb-logo { text-align:center; padding:4px 0 16px; margin-bottom:6px; border-bottom:1px solid #eeece7; }
+.gh-sb-logo .paw { font-size:38px; line-height:1.1; }
+.gh-sb-logo .brand { font-size:16px; font-weight:800; color:#8a6a00; letter-spacing:2px; margin-top:4px; }
+.gh-sb-logo .sub { font-size:10.5px; font-weight:800; color:#4b5057; letter-spacing:2px; margin-top:8px; text-transform:uppercase; }
+.gh-sb-label { font-size:10.5px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:#8f949a; margin:0 0 -6px; }
+.st-key-gh_nav [data-testid="stElementContainer"], .st-key-gh_nav [data-testid="stRadio"] { width:100% !important; }
+.st-key-gh_nav [role="radiogroup"] { width:100%; gap:2px; flex-direction:column; flex-wrap:nowrap; }
+.st-key-gh_nav [role="radiogroup"] > label { width:100%; margin:0 !important; padding:9px 12px; border-radius:10px; cursor:pointer; transition:background .15s; }
+.st-key-gh_nav [role="radiogroup"] > label > div:first-child { display:none; }
+.st-key-gh_nav [role="radiogroup"] > label:hover { background:#fdf6e3; }
+.st-key-gh_nav [role="radiogroup"] > label p { font-size:14px; font-weight:700; color:#374151 !important; }
+.st-key-gh_nav [role="radiogroup"] > label:has(input:checked) { background:#1f2328; }
+.st-key-gh_nav [role="radiogroup"] > label:has(input:checked) p { color:#ffffff !important; }
+.st-key-gh_sb_foot { border-top:1px solid #eeece7; padding-top:14px; margin-top:6px; gap:10px; }
+.st-key-gh_sb_foot .gh-who { line-height:1.5; }
+.st-key-gh_sb_foot [data-testid="stMarkdownContainer"]:has(.gh-who) { margin-bottom:0 !important; }
+.st-key-gh_sb_foot .stButton button { background:#ffffff; color:#6b7280; border:1.5px solid #e4e2dc; border-radius:25px;
+    font-weight:800; font-size:12px; letter-spacing:.5px; min-height:38px; }
+.st-key-gh_sb_foot .stButton button:hover { border-color:#c9a227; color:#8a6a00; transform:translateY(-1px); }
+.st-key-gh_sb_foot .stButton button p { font-size:12px; font-weight:800; color:inherit !important; }
 
 [data-testid="stMetric"] {
     background: #ffffff; border: 1px solid #ebe5d9; border-radius: 14px; padding: 16px 18px !important;
@@ -867,17 +888,27 @@ def load_clean(date_from: str, date_to: str, shop_codes: tuple):
 # SIDEBAR
 # ─────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-    <div style="text-align:center;padding:16px 0 8px;">
-        <div style="font-size:40px;">🐾</div>
-        <div style="font-size:16px;font-weight:800;color:#8a6a00;letter-spacing:2px;">GREYHOUND CAFÉ</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:4px;">Promotion Intelligence</div>
-    </div>
-    <hr style="border-color:#e6dfd1;margin:12px 0;">
-    """, unsafe_allow_html=True)
+    # โครงเดียวกับ ABP / Dunkin web (ผู้ใช้ขอ 2026-11-27): โลโก้ → เมนู "หน้า" แบบแถบ → ตัวกรอง → ท้ายเมนู (ผู้ใช้ + REFRESH + ออกจากระบบ)
+    # ช่วงเวลายังแสดงทุกหน้าตามเดิม (ผู้ใช้เลือก) · โค้ดเดิมใน app_main.py.bak_20261127_presidebar
+    _logo_slot = st.empty()          # เติมทีหลัง — บรรทัดล่างของโลโก้ = ชื่อหน้าที่เลือกอยู่
+
+    # ── เมนูหน้า ── รายการ + ลำดับอยู่ใน dash_access.PAGES — แสดงเฉพาะหน้าที่ user มีสิทธิ์ (Admin = role admin เท่านั้น)
+    # ไม่มี URL แยกต่อหน้า → หน้าที่ไม่อยู่ในรายการนี้เข้าไม่ได้จริง ไม่ใช่แค่ซ่อน
+    # (st.radio ตัวเดิม label/ตัวเลือกเดิม → id widget เดิม หน้าที่ผู้ใช้เปิดค้างไม่เด้ง · CSS .st-key-gh_nav ทำเป็นแถบ)
+    st.markdown("<div class='gh-sb-label'>หน้า</div>", unsafe_allow_html=True)
+    if NAV_PAGES:
+        with st.container(key="gh_nav"):
+            page = st.radio("หน้า", NAV_PAGES, label_visibility="collapsed")
+    else:
+        page = None
+        st.markdown("<div style='font-size:13px;color:#9ca3af'>🔒 ยังไม่ได้รับสิทธิ์ดูเมนู</div>", unsafe_allow_html=True)
+
+    _logo_slot.markdown(
+        "<div class='gh-sb-logo'><div class='paw'>🐾</div><div class='brand'>GREYHOUND CAFÉ</div>"
+        f"<div class='sub'>{page or 'Promotion Intelligence'}</div></div>", unsafe_allow_html=True)
 
     # ── Date Filter ──
-    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>📅 ช่วงเวลา</div>", unsafe_allow_html=True)
+    st.markdown("<div class='gh-sb-label'>ช่วงเวลา</div>", unsafe_allow_html=True)
 
     preset = st.selectbox("Quick Select", [
         "วันนี้", "เมื่อวาน", "7 วันล่าสุด", "30 วันล่าสุด",
@@ -906,16 +937,14 @@ with st.sidebar:
     st.markdown(f"<div style='font-size:11px;color:#8a6a00;text-align:center;margin:4px 0 8px;'>{d_from.strftime('%d/%m/%Y')} – {d_to.strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
 
     # ── Brand Filter ──
-    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏷️ แบรนด์</div>", unsafe_allow_html=True)
+    st.markdown("<div class='gh-sb-label'>แบรนด์</div>", unsafe_allow_html=True)
 
     BRAND_MAP = {"ทั้งหมด": None, "🐾 Greyhound (GC)": "GC", "🌿 Anotherhound (AH)": "AH", "☕ Beanhound (BE)": "BE"}
     brand_sel = st.selectbox("Brand", list(BRAND_MAP.keys()), label_visibility="collapsed", key="brand_sel")
     selected_brand = BRAND_MAP[brand_sel]
 
     # ── Shop Filter ──
-    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>🏪 สาขา</div>", unsafe_allow_html=True)
+    st.markdown("<div class='gh-sb-label'>สาขา</div>", unsafe_allow_html=True)
 
     shops_df = get_shops()
     # กรองตาม brand ที่เลือก
@@ -936,29 +965,25 @@ with st.sidebar:
     else:
         selected_shops = tuple(s.split(" – ")[0] for s in shop_sel)
 
-    # ── Navigation ──
-    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#6b7280;font-weight:600;letter-spacing:1px;margin-bottom:8px;'>NAVIGATION</div>", unsafe_allow_html=True)
-    # รายการหน้า + ลำดับอยู่ใน dash_access.PAGES — แสดงเฉพาะหน้าที่ user มีสิทธิ์ (Admin = role admin เท่านั้น)
-    # ไม่มี URL แยกต่อหน้า → หน้าที่ไม่อยู่ในรายการนี้เข้าไม่ได้จริง ไม่ใช่แค่ซ่อน
-    if NAV_PAGES:
-        page = st.radio("หน้า", NAV_PAGES, label_visibility="collapsed")
-    else:
-        page = None
-        st.markdown("<div style='font-size:13px;color:#9ca3af'>🔒 ยังไม่ได้รับสิทธิ์ดูเมนู</div>", unsafe_allow_html=True)
-
     if page == "📡 Sale Monitor":
-        st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
         st.checkbox(f"🔄 auto-refresh {SM_REFRESH_SEC} วิ", value=True, key="sm_auto")
         st.checkbox("🔔 เด้งแจ้งยอดเข้ารายสาขา", value=True, key="sm_toast_on")
 
-    st.markdown("<hr style='border-color:#e6dfd1;margin:8px 0;'>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:11px;color:#6b7280;'>อัพเดท: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:13px;color:#374151;margin-top:10px'>👤 {AUTH_NAME}"
-                f"<span style='color:#9ca3af'> · {AUTH_USER}</span></div>", unsafe_allow_html=True)
-    if st.button("ออกจากระบบ", key="logout_btn", use_container_width=True):
-        dash_auth.logout(st)
-        st.rerun()
+    # ── ท้ายเมนู ──
+    with st.container(key="gh_sb_foot"):
+        st.markdown(f"<div class='gh-who'><div style='font-size:13px;color:#374151'>👤 {AUTH_NAME}"
+                    f"<span style='color:#9ca3af'> · {AUTH_USER}</span></div>"
+                    f"<div style='font-size:11px;color:#8f949a;margin-top:2px'>อัพเดท: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div></div>",
+                    unsafe_allow_html=True)
+        if st.button("🔄 REFRESH", key="gh_refresh_btn", use_container_width=True):
+            # ล้างเฉพาะ cache ข้อมูลขาย/สาขา แล้วโหลดใหม่ทันที (ไม่ล้าง cache ทั้งแอป เช่น Menu Engineering/สูตร)
+            for _fn in (load_clean, _load_shops, sm_totals, sm_ytd_same_time, sm_shop_now,
+                        sm_shop_rank, sm_hourly, sm_extra, sm_basket):
+                _fn.clear()
+            st.rerun()
+        if st.button("ออกจากระบบ", key="logout_btn", use_container_width=True):
+            dash_auth.logout(st)
+            st.rerun()
 
 if page is None:
     st.info("🔒 บัญชีนี้ยังไม่ได้รับสิทธิ์ดูเมนูใด — ติดต่อผู้ดูแลระบบให้เปิดสิทธิ์")
