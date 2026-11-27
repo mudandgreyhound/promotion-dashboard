@@ -468,6 +468,8 @@ def print_banner():
 def print_config(args):
     tags = []
     if args.full:     tags.append(f"{C.BLUE}FULL{C.RESET}")
+    elif args.masters: tags.append(f"{C.BLUE}MASTERS: {args.masters}{C.RESET}")
+    if args.no_trans: tags.append(f"{C.YELLOW}NO-TRANS{C.RESET}")
     if args.dry_run:  tags.append(f"{C.YELLOW}DRY-RUN{C.RESET}")
     tag_str = "  " + "  ".join(tags) if tags else ""
 
@@ -546,6 +548,11 @@ def parse_args():
                    help="ช่วงวันสำหรับ Menu Engineering  (default: 30 60 90)")
     p.add_argument("--sync-recipe", action="store_true", dest="sync_recipe",
                    help="Sync IRecDet + ItemMast(NC) จาก MSSQL → MySQL")
+    # ── เพิ่ม 2026-11-27 : เลือก sync เฉพาะบาง Master Table จากหน้า ETL Admin (แบบเดียวกับ /opt/recipe_master/etl) ──
+    p.add_argument("--masters",   default="",
+                   help="Sync เฉพาะ Master Tables ที่ระบุ คั่นด้วย comma เช่น ItmMasTB,PosShopTB  (--full = ทุกตาราง)")
+    p.add_argument("--no-trans",  action="store_true", dest="no_trans",
+                   help="ข้าม Transaction Tables (บิล) — ใช้คู่ --masters / --full / --sync-recipe")
     return p.parse_args()
 
 
@@ -959,6 +966,13 @@ def main():
         ms_ok, my_ok = test_connections()
         sys.exit(0 if (ms_ok and my_ok) else 1)
 
+    # --masters: ตรวจชื่อก่อนต่อ DB
+    master_pick = [t.strip() for t in args.masters.split(",") if t.strip()]
+    bad = [t for t in master_pick if t not in MASTER_TABLES]
+    if bad:
+        log.error(err(f"--masters ไม่รู้จัก: {', '.join(bad)}  (มี: {', '.join(MASTER_TABLES)})"))
+        sys.exit(2)
+
     print_config(args)
 
     shop_codes = [s.strip() for s in args.shop.split(",") if s.strip()] or None
@@ -985,21 +999,24 @@ def main():
     print()
     results = []
 
-    # ── Transactional tables ──
-    log.info(bold("── Transaction Tables ──────────────────────────"))
-    for tbl, cfg in TRANS_TABLES.items():
-        r = sync_table(
-            mssql_conn, mysql_conn, tbl, cfg,
-            date_from=args.date_from, date_to=args.date_to,
-            shop_codes=shop_codes, dry_run=args.dry_run
-        )
-        results.append(r)
+    # ── Transactional tables ── (--no-trans = ข้าม)
+    if not args.no_trans:
+        log.info(bold("── Transaction Tables ──────────────────────────"))
+        for tbl, cfg in TRANS_TABLES.items():
+            r = sync_table(
+                mssql_conn, mysql_conn, tbl, cfg,
+                date_from=args.date_from, date_to=args.date_to,
+                shop_codes=shop_codes, dry_run=args.dry_run
+            )
+            results.append(r)
 
-    # ── Master tables ──
-    if args.full:
+    # ── Master tables ── (--full = ทุกตาราง ; --masters = เฉพาะที่ระบุ)
+    if args.full or master_pick:
         print()
         log.info(bold("── Master Tables ───────────────────────────────"))
         for tbl, cfg in MASTER_TABLES.items():
+            if not args.full and tbl not in master_pick:
+                continue
             r = sync_table(
                 mssql_conn, mysql_conn, tbl, cfg,
                 dry_run=args.dry_run, full_refresh=True

@@ -29,13 +29,35 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ธีมสว่าง (2026-11-27) ให้เข้ากับหน้า Admin ของ Greyhound ที่ฝังแอปนี้เป็น iframe
+# gh-etl-admin.service ส่ง --theme.base dark ทาง CLI (แก้ unit ต้องใช้ sudo) แต่ Streamlit อ่านธีมจาก config
+# ใหม่ทุกครั้งที่สคริปต์เริ่มรัน → ตั้งเป็น light ที่นี่ แล้ว rerun ครั้งเดียวให้ browser ได้ธีมใหม่ทันที
+# มีผลแค่ process นี้ (พอร์ต 89) · ถ้าเอา flag ออกจาก unit แล้ว บล็อกนี้จะไม่ทำอะไร
+from streamlit import config as _st_config
+if _st_config.get_option("theme.base") != "light":
+    _st_config.set_option("theme.base", "light")
+    st.rerun()
+
 # ─────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────
 ETL_SCRIPT   = "/opt/promotion_dashboard/etl/etl_sync.py"
 VENV_PYTHON  = "/opt/promotion_dashboard/venv/bin/python3"
 LOG_FILE     = "/var/log/gh_etl.log"
-DASH_URL     = "http://10.8.1.88:89"
+DASH_URL     = "http://10.8.1.88:83"   # Greyhound dashboard (เดิมชี้ :89 = แอป ETL นี้เอง)
+
+# Master Tables ที่เลือก sync ได้ทีละตาราง — ต้องตรงกับ MASTER_TABLES ใน etl_sync.py
+# (ชื่อที่ etl_sync ไม่รู้จักจะหยุดพร้อม error ไม่ sync อะไร)
+MASTER_TABLE_LABELS = {
+    "ItmDepTB":  "แผนก (POS)",
+    "ItmCatTB":  "หมวดเมนู (POS)",
+    "ItmMasTB":  "เมนู/สินค้า (POS)",
+    "ItemCat":   "หมวดวัตถุดิบ (RM/WIP)",
+    "ItemMast":  "วัตถุดิบ/WIP (RM/WIP)",
+    "MemTypetb": "ประเภทสมาชิก",
+    "MemberTB":  "สมาชิก",
+    "PosShopTB": "สาขา",
+}
 
 # user:password มาจาก .env (ETL_ADMIN_USERS="admin:xxx,it:yyy")
 ADMIN_USERS  = dict(p.split(":", 1) for p in gh_env.need("ETL_ADMIN_USERS").split(",") if ":" in p)
@@ -50,82 +72,83 @@ def strip_ansi(text: str) -> str:
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #0d1117; color: #e6edf3; }
+/* ── ธีมสว่าง (2026-11-27) โทนเดียวกับ app_main.py: พื้นครีม การ์ดขาว ตัวหนังสือเข้ม accent ทอง ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap');
+html, body, [class*="css"], .stApp, button, input, textarea, select { font-family: 'Inter', 'Noto Sans Thai', sans-serif; }
+.stApp { background: #faf8f4; color: #1f2328; }
+/* ฝังเป็น iframe ในหน้า Admin → ตัดแถบ header และระยะว่างด้านบนแบบเดียวกับหน้าหลัก */
+header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
+[data-testid="stMainBlockContainer"], .block-container { padding-top: 1.2rem !important; }
+[data-testid="stAppDeployButton"] { display: none !important; }
 
 /* LOGIN */
 .login-wrap {
     max-width: 420px; margin: 80px auto;
-    background: linear-gradient(135deg, #161b22, #1c2230);
-    border: 1px solid #d4af37;
+    background: #ffffff;
+    border: 1px solid #ead9a8;
     border-radius: 24px; padding: 48px 40px;
-    box-shadow: 0 24px 64px rgba(0,0,0,.6);
+    box-shadow: 0 12px 32px rgba(0,0,0,.08);
 }
 .login-logo { text-align:center; margin-bottom:32px; }
 .login-logo .paw { font-size:52px; }
-.login-logo h2 { color:#d4af37; font-size:22px; font-weight:800; letter-spacing:2px; margin:8px 0 4px; }
-.login-logo p  { color:#8b949e; font-size:12px; margin:0; }
+.login-logo h2 { color:#1f2328; font-size:22px; font-weight:800; letter-spacing:2px; margin:8px 0 4px; }
+.login-logo p  { color:#7c6f5b; font-size:12px; margin:0; }
 
 /* HEADER STRIP */
 .admin-header {
-    background: linear-gradient(135deg, #1a0a00, #3d2200);
-    border: 1px solid #d4af37; border-radius:16px;
+    background: linear-gradient(135deg, #fffaf0, #f6ecd2);
+    border: 1px solid #ead9a8; border-radius:16px;
     padding:20px 28px; margin-bottom:24px;
     display:flex; align-items:center; justify-content:space-between;
 }
-.admin-header h1 { color:#d4af37; font-size:22px; font-weight:800; margin:0; }
-.admin-header p  { color:#a0824a; font-size:12px; margin:4px 0 0; }
+.admin-header h1 { color:#1f2328; font-size:22px; font-weight:800; margin:0; }
+.admin-header p  { color:#7c6f5b; font-size:12px; margin:4px 0 0; }
 
 /* METRIC */
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg,#161b22,#1c2230);
-    border:1px solid #30363d; border-radius:14px; padding:18px !important;
+    background:#ffffff; border:1px solid #ebe5d9; border-radius:14px; padding:18px !important;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
 }
-[data-testid="stMetricLabel"] { color:#8b949e !important; font-size:12px !important; }
-[data-testid="stMetricValue"] { color:#d4af37 !important; font-size:26px !important; font-weight:700 !important; }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p { color:#6b5e48 !important; font-size:12px !important; font-weight:600 !important; }
+[data-testid="stMetricValue"] { color:#1f2328 !important; font-size:26px !important; font-weight:700 !important; }
 
 /* CARD */
-.card { background:#161b22; border:1px solid #30363d; border-radius:14px; padding:20px; margin:8px 0; }
-.card-gold { border-left:4px solid #d4af37; }
+.card { background:#ffffff; border:1px solid #ebe5d9; border-radius:14px; padding:20px; margin:8px 0; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.card-gold { border-left:4px solid #c9a227; }
 
 /* TABLE PILL */
 .tbl-row {
     display:flex; align-items:center; padding:10px 16px; margin:4px 0;
-    background:#161b22; border:1px solid #30363d; border-radius:8px;
+    background:#ffffff; border:1px solid #ebe5d9; border-radius:8px; color:#1f2328;
 }
-.tbl-row:hover { border-color:#d4af37; }
+.tbl-row:hover { border-color:#c9a227; background:#fffdf7; }
 
 /* LOG BOX */
 .log-box {
-    background:#010409; border:1px solid #21262d; border-radius:10px;
+    background:#ffffff; border:1px solid #ebe5d9; border-radius:10px;
     padding:16px; font-family:'Courier New',monospace; font-size:12px;
-    color:#3fb950; max-height:400px; overflow-y:auto; white-space:pre-wrap;
+    color:#374151; max-height:400px; overflow-y:auto; white-space:pre-wrap;
 }
 
 /* BADGE */
 .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-ok  { background:#3fb95030; color:#3fb950; border:1px solid #3fb950; }
-.badge-err { background:#f8514930; color:#f85149; border:1px solid #f85149; }
-.badge-run { background:#d4af3730; color:#d4af37; border:1px solid #d4af37; }
-.badge-skip{ background:#8b949e30; color:#8b949e; border:1px solid #8b949e; }
-
-/* INPUT */
-.stTextInput input, .stDateInput input {
-    background:#161b22 !important; border:1px solid #30363d !important;
-    color:#e6edf3 !important; border-radius:8px !important;
-}
-.stTextInput input:focus { border-color:#d4af37 !important; }
+.badge-ok  { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+.badge-err { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
+.badge-run { background:#fdf3d7; color:#7a5c00; border:1px solid #e9cf7e; }
+.badge-skip{ background:#f3f4f6; color:#4b5563; border:1px solid #d1d5db; }
 
 /* BUTTON */
 .stButton button {
     border-radius:10px !important; font-weight:600 !important;
 }
 
-/* TABS */
-.stTabs [data-baseweb="tab-list"] { background:#161b22 !important; border-radius:10px; gap:4px; }
-.stTabs [data-baseweb="tab"] { border-radius:8px !important; color:#8b949e !important; font-weight:600 !important; }
-.stTabs [aria-selected="true"] { background:#d4af37 !important; color:#0d1117 !important; }
+/* TABS (เหมือนหน้าหลัก) */
+.stTabs [data-baseweb="tab-list"] { background:#f3eee3 !important; border-radius:12px; gap:4px; padding:4px; }
+.stTabs [data-baseweb="tab"] { border-radius:8px !important; color:#4b5563 !important; font-weight:600 !important; }
+.stTabs [aria-selected="true"] { background:#1f2328 !important; color:#ffffff !important; }
+
+::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-track { background:#faf8f4; }
+::-webkit-scrollbar-thumb { background:#d6cdb9; border-radius:4px; }
 
 section[data-testid="stSidebar"] { display:none; }
 </style>
@@ -173,8 +196,8 @@ def show_login():
         login_btn = c1.button("🔓 เข้าสู่ระบบ", use_container_width=True, type="primary")
         c2.markdown(
             f"<a href='{DASH_URL}' target='_blank'>"
-            "<button style='width:100%;padding:8px;background:#161b22;color:#d4af37;"
-            "border:1px solid #d4af37;border-radius:8px;cursor:pointer;font-weight:600;"
+            "<button style='width:100%;padding:8px;background:#ffffff;color:#8a6a00;"
+            "border:1px solid #c9a227;border-radius:8px;cursor:pointer;font-weight:600;"
             "font-size:13px;'>📊 Dashboard</button></a>",
             unsafe_allow_html=True
         )
@@ -268,8 +291,8 @@ def show_admin():
             <p>MSSQL (192.168.5.3) → MySQL (10.8.1.88) · GH Promotion</p>
         </div>
         <div style="text-align:right;">
-            <div style="font-size:12px;color:#8b949e;">ผู้ใช้งาน</div>
-            <div style="font-size:16px;font-weight:700;color:#d4af37;">👤 {st.session_state.username}</div>
+            <div style="font-size:12px;color:#6b7280;">ผู้ใช้งาน</div>
+            <div style="font-size:16px;font-weight:700;color:#8a6a00;">👤 {st.session_state.username}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -277,9 +300,9 @@ def show_admin():
     # ── Top action bar ──
     bc1, bc2, bc3, bc4 = st.columns([2,2,2,1])
     bc1.markdown(
-        f"<a href='{DASH_URL}' target='_blank' style='text-decoration:none;'>"
-        "<div style='background:#161b22;border:1px solid #d4af37;border-radius:10px;"
-        "padding:10px 16px;text-align:center;color:#d4af37;font-weight:700;font-size:13px;"
+        f"<a href='{DASH_URL}' target='_blank' style='text-decoration:none;color:#8a6a00;'>"
+        "<div style='background:#ffffff;border:1px solid #c9a227;border-radius:10px;"
+        "padding:10px 16px;text-align:center;color:#8a6a00;font-weight:700;font-size:13px;"
         "cursor:pointer;'>📊 ไปที่ Dashboard</div></a>",
         unsafe_allow_html=True
     )
@@ -299,7 +322,7 @@ def show_admin():
     # TAB 1 – RUN ETL
     # ════════════════════════════
     with tab_run:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:16px;">🚀 รัน ETL Sync</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:16px;">🚀 รัน ETL Sync</div>', unsafe_allow_html=True)
 
         col_l, col_r = st.columns([3, 2])
         with col_l:
@@ -310,19 +333,42 @@ def show_admin():
             shop_code = st.text_input("🏪 ShopCode (เว้นว่าง = ทั้งหมด)", placeholder="เช่น 0001,0004")
 
             col_opt1, col_opt2 = st.columns(2)
-            inc_master = col_opt1.checkbox("📦 รวม Master Tables (--full)", value=False)
+            inc_master = col_opt1.checkbox("📦 รวม Master Tables", value=False, key="inc_master")
             dry_run    = col_opt2.checkbox("🧪 Dry Run (ทดสอบ ไม่ write)", value=False)
+
+            # เลือก Master Table ทีละตาราง (2026-11-27) — ติ๊กครบทุกตาราง = --full เหมือนเดิม
+            master_pick, skip_trans = [], False
+            if inc_master:
+                with st.container(border=True):
+                    for t in MASTER_TABLE_LABELS:
+                        st.session_state.setdefault(f"mt_{t}", True)
+                    h1, h2, h3 = st.columns([2.4, 1.6, 1])
+                    h1.markdown('<div style="font-size:13px;font-weight:700;color:#8a6a00;padding-top:8px;">เลือก Master Tables ที่จะ sync</div>', unsafe_allow_html=True)
+                    if h2.button("เลือกทั้งหมด", key="mt_all", use_container_width=True):
+                        for t in MASTER_TABLE_LABELS:
+                            st.session_state[f"mt_{t}"] = True
+                    if h3.button("ล้าง", key="mt_none", use_container_width=True):
+                        for t in MASTER_TABLE_LABELS:
+                            st.session_state[f"mt_{t}"] = False
+                    mcols = st.columns(2)
+                    for i, (t, label) in enumerate(MASTER_TABLE_LABELS.items()):
+                        if mcols[i % 2].checkbox(f"{t} · {label}", key=f"mt_{t}"):
+                            master_pick.append(t)
+                    skip_trans = st.checkbox("⏭️ ข้าม Transaction Tables (sync เฉพาะ Master ที่เลือก ไม่ดึงบิล)", key="skip_trans")
+                    if not master_pick:
+                        st.caption("⚠️ เลือกอย่างน้อย 1 ตาราง")
 
             st.markdown("<br>", unsafe_allow_html=True)
 
             btn_col1, btn_col2 = st.columns(2)
-            run_btn  = btn_col1.button("▶️ เริ่ม Sync", type="primary", use_container_width=True, disabled=st.session_state.etl_running)
+            run_btn  = btn_col1.button("▶️ เริ่ม Sync", type="primary", use_container_width=True,
+                                       disabled=st.session_state.etl_running or (inc_master and not master_pick))
             test_btn = btn_col2.button("🔌 Test Connection", use_container_width=True)
 
         with col_r:
             st.markdown("""
             <div class="card card-gold">
-                <div style="font-size:13px;font-weight:700;color:#d4af37;margin-bottom:12px;">⚡ Quick Run</div>
+                <div style="font-size:13px;font-weight:700;color:#8a6a00;margin-bottom:12px;">⚡ Quick Run</div>
             """, unsafe_allow_html=True)
 
             presets = {
@@ -350,7 +396,12 @@ def show_admin():
             if shop_code.strip():
                 args += ["--shop", shop_code.strip()]
             if inc_master:
-                args.append("--full")
+                if len(master_pick) == len(MASTER_TABLE_LABELS):
+                    args.append("--full")                       # ครบทุกตาราง = แบบเดิม
+                else:
+                    args += ["--masters", ",".join(master_pick)]
+                if skip_trans:
+                    args.append("--no-trans")
             if dry_run:
                 args.append("--dry-run")
 
@@ -368,13 +419,13 @@ def show_admin():
             for line in output:
                 clean = strip_ansi(line)
                 if "✔" in clean or "success" in clean.lower() or "DONE" in clean:
-                    colored += f'<span style="color:#3fb950">{clean}</span>\n'
+                    colored += f'<span style="color:#15803d">{clean}</span>\n'
                 elif "✘" in clean or "error" in clean.lower() or "ERROR" in clean:
-                    colored += f'<span style="color:#f85149">{clean}</span>\n'
+                    colored += f'<span style="color:#dc2626">{clean}</span>\n'
                 elif "⚠" in clean or "warn" in clean.lower():
-                    colored += f'<span style="color:#d29922">{clean}</span>\n'
+                    colored += f'<span style="color:#b45309">{clean}</span>\n'
                 elif "→" in clean:
-                    colored += f'<span style="color:#58a6ff">{clean}</span>\n'
+                    colored += f'<span style="color:#2563eb">{clean}</span>\n'
                 else:
                     colored += f'{clean}\n'
 
@@ -398,7 +449,7 @@ def show_admin():
     # TAB 2 – DB STATUS
     # ════════════════════════════
     with tab_status:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:16px;">📊 สถานะฐานข้อมูล MySQL</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:16px;">📊 สถานะฐานข้อมูล MySQL</div>', unsafe_allow_html=True)
 
         if st.button("🔄 ดึงข้อมูลสถานะ", key="refresh_stats", use_container_width=True):
             get_db_stats.clear()
@@ -418,13 +469,13 @@ def show_admin():
                 MASTER = ["MemberTB","MemTypetb","PosShopTB","ItmMasTB","ItmDepTB","ItmCatTB"]
                 col_t, col_m = st.columns(2)
                 with col_t:
-                    st.markdown('<div style="font-size:14px;font-weight:700;color:#58a6ff;margin-bottom:8px;">Transaction Tables</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="font-size:14px;font-weight:700;color:#2563eb;margin-bottom:8px;">Transaction Tables</div>', unsafe_allow_html=True)
                     for tbl in TRANS:
                         rows = stats.get(tbl)
                         badge = f'<span class="badge badge-ok">{rows:,} rows</span>' if rows is not None else '<span class="badge badge-err">ไม่มีข้อมูล</span>'
                         st.markdown(f'<div class="tbl-row"><span style="flex:1;font-weight:600;">{tbl}</span>{badge}</div>', unsafe_allow_html=True)
                 with col_m:
-                    st.markdown('<div style="font-size:14px;font-weight:700;color:#d4af37;margin-bottom:8px;">Master Tables</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="font-size:14px;font-weight:700;color:#8a6a00;margin-bottom:8px;">Master Tables</div>', unsafe_allow_html=True)
                     for tbl in MASTER:
                         rows = stats.get(tbl)
                         badge = f'<span class="badge badge-ok">{rows:,} rows</span>' if rows is not None else '<span class="badge badge-err">ไม่มีข้อมูล</span>'
@@ -435,7 +486,7 @@ def show_admin():
     # TAB 3 – LOG
     # ════════════════════════════
     with tab_log:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:16px;">📋 ETL Log</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:16px;">📋 ETL Log</div>', unsafe_allow_html=True)
 
         lc1, lc2, lc3 = st.columns([2,2,1])
         n_lines = lc1.selectbox("แสดง", [50, 100, 200, 500], index=1, key="log_lines")
@@ -451,7 +502,7 @@ def show_admin():
 
         # File log
         st.markdown(f"**📁 File Log: `{LOG_FILE}`**")
-        file_log = read_log_tail(n_lines)
+        file_log = strip_ansi(read_log_tail(n_lines))   # log ไฟล์มีโค้ดสี ANSI จาก etl_sync.py
         st.markdown(f'<div class="log-box">{file_log}</div>', unsafe_allow_html=True)
 
         # Download log
@@ -466,11 +517,11 @@ def show_admin():
     # TAB 4 – CONNECTION
     # ════════════════════════════
     with tab_conn:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:16px;">🔗 ทดสอบ Connection</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:16px;">🔗 ทดสอบ Connection</div>', unsafe_allow_html=True)
 
         c_l, c_r = st.columns(2)
         with c_l:
-            st.markdown('<div class="card card-gold"><div style="font-weight:700;color:#58a6ff;margin-bottom:12px;">📡 MSSQL – Data Center</div>', unsafe_allow_html=True)
+            st.markdown('<div class="card card-gold"><div style="font-weight:700;color:#2563eb;margin-bottom:12px;">📡 MSSQL – Data Center</div>', unsafe_allow_html=True)
             ms_srv = st.text_input("Server", "192.168.5.3,1433",  key="c_ms_srv")
             ms_db  = st.text_input("Database", "GH",             key="c_ms_db")
             ms_usr = st.text_input("User", "cmpos01",             key="c_ms_usr")
@@ -494,7 +545,7 @@ def show_admin():
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_r:
-            st.markdown('<div class="card card-gold"><div style="font-weight:700;color:#d4af37;margin-bottom:12px;">🗄️ MySQL – Ubuntu Server</div>', unsafe_allow_html=True)
+            st.markdown('<div class="card card-gold"><div style="font-weight:700;color:#8a6a00;margin-bottom:12px;">🗄️ MySQL – Ubuntu Server</div>', unsafe_allow_html=True)
             my_host = st.text_input("Host",     "10.8.1.88", key="c_my_h")
             my_port = st.number_input("Port",   value=3306,         key="c_my_p")
             my_db   = st.text_input("Database", "gh_promotion",     key="c_my_db")
@@ -520,8 +571,8 @@ def show_admin():
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
         <div class="card">
-            <div style="font-weight:700;color:#d4af37;margin-bottom:12px;">⏰ Crontab Schedule</div>
-            <pre style="color:#3fb950;font-size:12px;margin:0;">
+            <div style="font-weight:700;color:#8a6a00;margin-bottom:12px;">⏰ Crontab Schedule</div>
+            <pre style="color:#15803d;font-size:12px;margin:0;">
 # ทุก 15 นาที (transaction)
 */15 * * * * cd /opt/promotion_dashboard/etl && /opt/promotion_dashboard/venv/bin/python3 etl_sync.py >> /var/log/gh_etl.log 2>&1
 
@@ -534,8 +585,8 @@ def show_admin():
     # TAB 5 – MENU ENGINEERING
     # ════════════════════════════
     with tab_me:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:4px;">🧑‍🏫 Build Menu Engineering Summary</div>', unsafe_allow_html=True)
-        st.markdown('<div style="font-size:12px;color:#8b949e;margin-bottom:16px;">คำนวณ Star / Puzzle / Plowhorse / Dog แล้วบันทึกลง menu_engineering_summary</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:4px;">🧑‍🏫 Build Menu Engineering Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:12px;color:#6b7280;margin-bottom:16px;">คำนวณ Star / Puzzle / Plowhorse / Dog แล้วบันทึกลง menu_engineering_summary</div>', unsafe_allow_html=True)
 
         me_period = st.radio("📅 เลือกช่วงเวลา", ["30 วัน", "60 วัน", "90 วัน", "ทั้งหมด (30+60+90)"],
                              horizontal=True, key="me_period")
@@ -548,7 +599,7 @@ def show_admin():
         }
         me_days = days_map[me_period]
 
-        st.markdown(f"<div style='font-size:12px;color:#8b949e;'>จะรัน: `--menu-engineering --me-days {' '.join(me_days)}`</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:12px;color:#6b7280;'>จะรัน: `--menu-engineering --me-days {' '.join(me_days)}`</div>", unsafe_allow_html=True)
 
         if st.button("🚀 รัน Build Menu Engineering", use_container_width=True, key="me_run"):
             args_extra = ["--menu-engineering", "--me-days"] + me_days
@@ -567,8 +618,8 @@ def show_admin():
     # TAB 6 – RECIPE & INGREDIENT
     # ════════════════════════════
     with tab_recipe:
-        st.markdown('<div style="font-size:18px;font-weight:700;color:#d4af37;margin-bottom:4px;">🥩 Recipe & Ingredient</div>', unsafe_allow_html=True)
-        st.markdown('<div style="font-size:12px;color:#8b949e;margin-bottom:16px;">ข้อมูลมาจาก MSSQL: <b>ItemMast</b> (NC*) → วัตถุดิบ &nbsp;|&nbsp; <b>IRecDet</b> → Recipe</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:18px;font-weight:700;color:#8a6a00;margin-bottom:4px;">🥩 Recipe & Ingredient</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:12px;color:#6b7280;margin-bottom:16px;">ข้อมูลมาจาก MSSQL: <b>ItemMast</b> (NC*) → วัตถุดิบ &nbsp;|&nbsp; <b>IRecDet</b> → Recipe</div>', unsafe_allow_html=True)
 
         # ── Sync button ──
         c1, c2 = st.columns([2,3])
@@ -584,9 +635,9 @@ def show_admin():
                     with st.expander("📋 Log"):
                         st.code("\n".join(lines), language="text")
         with c2:
-            st.markdown('<div style="font-size:12px;color:#8b949e;padding-top:10px;">Cron ทุกคืน: <code>python etl_sync.py --sync-recipe</code></div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size:12px;color:#6b7280;padding-top:10px;">Cron ทุกคืน: <code>python etl_sync.py --sync-recipe</code></div>', unsafe_allow_html=True)
 
-        st.markdown("<hr style='border-color:#30363d;margin:12px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#ebe5d9;margin:12px 0;'>", unsafe_allow_html=True)
 
         rtab1, rtab2, rtab3 = st.tabs(["🧂 วัตถุดิบ", "📋 Recipe", "📦 Stock"])
 
@@ -608,7 +659,7 @@ def show_admin():
                         ORDER BY i.item_code
                     """, conn)
                     conn.close()
-                    st.markdown(f'<div style="font-size:12px;color:#8b949e;">พบ {len(df_ing)} รายการ</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-size:12px;color:#6b7280;">พบ {len(df_ing)} รายการ</div>', unsafe_allow_html=True)
                     st.dataframe(df_ing, use_container_width=True, height=400)
                 except Exception as e:
                     st.warning(f"ยังไม่มีข้อมูล — กด Sync ก่อน ({e})")
@@ -630,14 +681,14 @@ def show_admin():
                     conn.close()
                     if search:
                         df_rec = df_rec[df_rec["rec_code"].str.contains(search, case=False, na=False)]
-                    st.markdown(f'<div style="font-size:12px;color:#8b949e;">พบ {len(df_rec)} rows</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-size:12px;color:#6b7280;">พบ {len(df_rec)} rows</div>', unsafe_allow_html=True)
                     st.dataframe(df_rec, use_container_width=True, height=400)
                 except Exception as e:
                     st.warning(f"ยังไม่มีข้อมูล — กด Sync ก่อน ({e})")
 
         # ── Stock ──
         with rtab3:
-            st.markdown('<div style="font-size:13px;font-weight:700;color:#d4af37;margin-bottom:8px;">📦 อัพเดท Stock ปัจจุบัน</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size:13px;font-weight:700;color:#8a6a00;margin-bottom:8px;">📦 อัพเดท Stock ปัจจุบัน</div>', unsafe_allow_html=True)
             if st.button("📋 โหลดรายการ Stock", key="load_stock", use_container_width=True):
                 try:
                     conn = pymysql.connect(**MYSQL_CFG_ETL)
